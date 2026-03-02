@@ -17,41 +17,76 @@ When modifying the app:
 app.post('/api/chat', async (req, res) => {
   const { messages, context } = req.body
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return res.status(500).json({ error: 'ANTHROPIC_API_KEY is not set. Add it to your .env file.' })
-  }
+  const systemPrompt = context
+    ? `${SYSTEM_PROMPT}\n\nThe user is building: "${context}"`
+    : SYSTEM_PROMPT
 
-  try {
-    const systemPrompt = context
-      ? `${SYSTEM_PROMPT}\n\nThe user is building: "${context}"`
-      : SYSTEM_PROMPT
-
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 4096,
-        system: systemPrompt,
-        messages,
-      }),
-    })
-
-    const data = await response.json()
-
-    if (!response.ok) {
-      return res.status(response.status).json({
-        error: data.error?.message || 'Anthropic API error',
+  // Prefer OpenAI if key is set, otherwise fall back to Anthropic
+  if (process.env.OPENAI_API_KEY) {
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          max_tokens: 4096,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            ...messages,
+          ],
+        }),
       })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        return res.status(response.status).json({
+          error: data.error?.message || 'OpenAI API error',
+        })
+      }
+
+      res.json({ content: data.choices[0].message.content })
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
     }
 
-    res.json({ content: data.content[0].text })
-  } catch (err) {
-    res.status(500).json({ error: String(err) })
+  } else if (process.env.ANTHROPIC_API_KEY) {
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': process.env.ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 4096,
+          system: systemPrompt,
+          messages,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        return res.status(response.status).json({
+          error: data.error?.message || 'Anthropic API error',
+        })
+      }
+
+      res.json({ content: data.content[0].text })
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+
+  } else {
+    res.status(500).json({
+      error: 'No API key found. Add OPENAI_API_KEY or ANTHROPIC_API_KEY to your .env file.',
+    })
   }
 })
 
