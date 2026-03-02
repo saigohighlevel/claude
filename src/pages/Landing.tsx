@@ -148,7 +148,9 @@ export default function Landing() {
   const [heroInput, setHeroInput] = useState('')
 
   const handleStart = (prompt?: string) => {
-    navigate('/dashboard', { state: { prompt: prompt || heroInput } })
+    const p = prompt || heroInput
+    if (p.trim()) sessionStorage.setItem('buildPrompt', p.trim())
+    navigate('/dashboard')
   }
 
   return (

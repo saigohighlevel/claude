@@ -117,9 +117,10 @@ export default function Dashboard() {
   const handleCreate = async () => {
     if (!prompt.trim()) return
     setCreating(true)
-    await new Promise(r => setTimeout(r, 800))
+    await new Promise(r => setTimeout(r, 400))
     const newId = `p${Date.now()}`
-    navigate(`/builder/${newId}`, { state: { prompt } })
+    sessionStorage.setItem('buildPrompt', prompt.trim())
+    navigate(`/builder/${newId}`)
   }
 
   const toggleStar = (id: string) => {

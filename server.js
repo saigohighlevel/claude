@@ -4,199 +4,315 @@ import 'dotenv/config'
 const app = express()
 app.use(express.json())
 
-const SYSTEM_PROMPT = `You are an elite UI/UX engineer and creative director who builds stunning, production-quality React websites. Your outputs look like they were designed by a world-class agency and built by a senior engineer.
+// ─── Verified Photo Library ───────────────────────────────────────────────────
+// All IDs are verified Unsplash photos matched to their category.
+// Format: https://images.unsplash.com/photo-{ID}?auto=format&fit=crop&w={w}&h={h}&q=80
 
-## OUTPUT FORMAT
-Always respond with:
-1. A brief 1-2 sentence description of what you built or changed
-2. The COMPLETE React component in a single \`\`\`tsx code block
+const PHOTOS = {
+  salon: {
+    hero:  '1560066984-138dadb4c035', // salon interior, warm lighting
+    svc1:  '1522337360788-8b13dee7a37e', // hairstylist at work
+    svc2:  '1582095133179-bfd08e2fbee6', // hair coloring
+    svc3:  '1503951914875-452162b0f3f1', // barbershop chair
+    about: '1595476108010-b4d1f102b1b1', // blowout / styling
+  },
+  restaurant: {
+    hero:  '1517248135467-4c7edcad34c4', // restaurant interior, warm
+    svc1:  '1565299624946-b28f40a0ae38', // food plating
+    svc2:  '1414235077428-338989a2e8c0', // fine dining table
+    svc3:  '1504674900247-0877df9cc836', // dish close-up
+    about: '1414235077428-338989a2e8c0', // dining scene
+  },
+  gym: {
+    hero:  '1534438327276-14e5300c3a48', // gym floor with equipment
+    svc1:  '1571019614242-c5c5dee81f9a', // personal training session
+    svc2:  '1583454110551-21f2fa2afe61', // weight lifting
+    svc3:  '1544367567-0f2fcb009e0b',   // yoga class
+    about: '1476480862126-209bfaa8edc8', // running track
+  },
+  spa: {
+    hero:  '1540555700478-4be290a9f948', // spa candles and calm
+    svc1:  '1515377905703-c4788e51af15', // massage treatment
+    svc2:  '1596178068033-bc38d7f8ef7b', // facial treatment
+    svc3:  '1544367567-0f2fcb009e0b',   // yoga / mindfulness
+    about: '1540555700478-4be290a9f948', // spa ambiance
+  },
+  tech: {
+    hero:  '1497366216548-37526070297c', // modern open office
+    svc1:  '1551434678-e076c223a692',   // team meeting
+    svc2:  '1504384308090-c894fdcc538d', // coding workspace
+    svc3:  '1522202176988-66273c2fd55f', // team collaboration
+    about: '1522202176988-66273c2fd55f', // office team
+  },
+  realestate: {
+    hero:  '1560518883-ce09059eeffa',   // luxury home exterior
+    svc1:  '1570129477492-45c003edd2be', // luxury interior living room
+    svc2:  '1556909114-f6e7ad7d3136',   // modern kitchen
+    svc3:  '1582407947304-fd86f28320c9', // pool and backyard
+    about: '1560518883-ce09059eeffa',   // property exterior
+  },
+  medical: {
+    hero:  '1576091160550-2173dba999ef', // doctor consultation
+    svc1:  '1559757175-5700dde675bc',   // clinic interior
+    svc2:  '1612349317150-e413f6a5b16d', // medical team
+    svc3:  '1584820927498-cfe5211fd8bf', // therapy session
+    about: '1576091160550-2173dba999ef', // medical consultation
+  },
+  generic: {
+    hero:  '1557804483-ef3f8fbf14e4',   // abstract professional
+    svc1:  '1551434678-e076c223a692',   // business meeting
+    svc2:  '1497366216548-37526070297c', // office environment
+    svc3:  '1504384308090-c894fdcc538d', // productivity/laptop
+    about: '1522202176988-66273c2fd55f', // team
+  },
+}
+
+// Verified portrait photos for testimonial avatars
+const PORTRAITS = [
+  '1531746020798-e6953c6e8e04', // woman, professional
+  '1580489944761-15a19d654956', // woman, smiling
+  '1507003211169-0a1dd7228f2d', // man, professional
+]
+
+function img(id, w, h) {
+  return `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${w}&h=${h}&q=80`
+}
+
+// ─── Stage 1: Planner Prompt ──────────────────────────────────────────────────
+const PLANNER_PROMPT = `You are a web design strategist. Analyze the user's request and produce a creative brief as JSON.
+
+Return ONLY valid JSON — no markdown, no explanation, no code fences. Just the JSON object.
+
+Available business_type values: salon, restaurant, gym, spa, tech, realestate, medical, generic
+
+JSON schema (fill every field):
+{
+  "business_name": "string — specific business name (invent one if not given)",
+  "business_type": "salon|restaurant|gym|spa|tech|realestate|medical|generic",
+  "tagline": "string — short, emotional, specific to this business",
+  "primary": "#hexcode — vivid brand color for buttons, accents",
+  "accent": "#hexcode — complementary highlight color",
+  "bg": "#hexcode — page background",
+  "text": "#hexcode — main body text color",
+  "theme": "light|dark",
+  "hero_headline": "string — bold, specific, emotional (NOT generic like 'Welcome to Our Business')",
+  "hero_sub": "string — 1-2 sentence value proposition",
+  "hero_cta": "string — action verb + specific outcome (e.g. 'Book Your Transformation')",
+  "services": [
+    {"title": "string", "desc": "string — 2 sentences, specific benefits"},
+    {"title": "string", "desc": "string"},
+    {"title": "string", "desc": "string"}
+  ],
+  "about_headline": "string",
+  "about_body": "string — 3 sentences, personal story and mission",
+  "testimonials": [
+    {"name": "string — realistic full name", "role": "string — job or city", "quote": "string — specific, emotional, authentic-sounding"},
+    {"name": "string", "role": "string", "quote": "string"},
+    {"name": "string", "role": "string", "quote": "string"}
+  ],
+  "cta_headline": "string — final section headline to drive conversion",
+  "phone": "string — realistic US phone number",
+  "email": "string — realistic email",
+  "address": "string — realistic US address"
+}
+
+Color guidance by business type:
+- salon: primary #c084fc, accent #f59e0b, bg #fdf8ff, text #1a1a2e, theme light
+- restaurant: primary #b91c1c, accent #d97706, bg #0f0907, text #f5f0eb, theme dark
+- gym: primary #2563eb, accent #f97316, bg #0a0f1a, text #e2e8f0, theme dark
+- spa: primary #0d9488, accent #d4a855, bg #f9fdf9, text #1c2b2a, theme light
+- tech: primary #6366f1, accent #06b6d4, bg #0f0f1a, text #e2e8f0, theme dark
+- realestate: primary #1e3a5f, accent #ca8a04, bg #f8f6f1, text #1a1a1a, theme light
+- medical: primary #0891b2, accent #2dd4bf, bg #f0fdfe, text #164e63, theme light
+- generic: primary #6366f1, accent #f59e0b, bg #ffffff, text #111827, theme light
+
+Be creative and specific. Invent a realistic, unique business name if not provided.`
+
+// ─── Stage 2: Builder Prompt factory ─────────────────────────────────────────
+function makeBuilderPrompt(plan, photos) {
+  const avatars = PORTRAITS.map(id => img(id, 80, 80))
+  const heroImg = img(photos.hero, 1920, 1080)
+  const aboutImg = img(photos.about, 900, 600)
+  const svcImgs = [img(photos.svc1, 800, 533), img(photos.svc2, 800, 533), img(photos.svc3, 800, 533)]
+
+  return `You are an elite React engineer. Build a stunning, production-quality landing page — the kind a $15,000 design agency would deliver.
+
+## BUSINESS
+Name: ${plan.business_name}
+Type: ${plan.business_type}
+Tagline: "${plan.tagline}"
+Theme: ${plan.theme}
+
+## DESIGN SYSTEM — exact values only
+Primary: ${plan.primary}
+Accent: ${plan.accent}
+Background: ${plan.bg}
+Text: ${plan.text}
+
+## IMAGES — use THESE EXACT URLs verbatim. No substitutions, no placeholders.
+Hero background:      ${heroImg}
+Service card 1 image: ${svcImgs[0]}
+Service card 2 image: ${svcImgs[1]}
+Service card 3 image: ${svcImgs[2]}
+About section photo:  ${aboutImg}
+Testimonial avatar 1: ${avatars[0]}
+Testimonial avatar 2: ${avatars[1]}
+Testimonial avatar 3: ${avatars[2]}
+
+## CONTENT — use word-for-word
+Hero headline: "${plan.hero_headline}"
+Hero subheadline: "${plan.hero_sub}"
+Primary CTA: "${plan.hero_cta}"
+Services:
+${plan.services.map((s, i) => `  ${i + 1}. ${s.title}: ${s.desc}`).join('\n')}
+About headline: "${plan.about_headline}"
+About body: "${plan.about_body}"
+Testimonials:
+${plan.testimonials.map((t, i) => `  ${i + 1}. ${t.name} (${t.role}): "${t.quote}"`).join('\n')}
+Final CTA: "${plan.cta_headline}"
+Contact: ${plan.phone} | ${plan.email} | ${plan.address}
 
 ## CODE RULES
-- Single file component: export default function App()
-- Use Tailwind CSS classes for ALL styling (loaded via CDN — all classes work)
-- Only React hooks allowed — no external library imports (no shadcn, no framer-motion, no icons library)
-- Use inline SVGs for any icons you need
-- Available hooks: useState, useEffect, useRef, useCallback, useMemo
-- Component MUST be fully interactive and functional
-- NEVER truncate the code — always output the complete component
+- Single file: export default function App()
+- React hooks: useState, useEffect, useRef, useCallback, useMemo — no other imports
+- Tailwind CSS classes (CDN, all classes work)
+- All icons must be inline SVG — no icon library imports
+- Complete output — never truncate, never use "..." or comments like "rest of code here"
 
-## MANDATORY PAGE STRUCTURE (for landing pages / business sites)
-Every landing page MUST include ALL of these sections:
+## 7 REQUIRED SECTIONS (all mandatory, in order)
 
-1. **NAVIGATION** — Fixed top bar, glass morphism blur background, logo on left, nav links center/right, CTA button, mobile hamburger menu that actually works
-2. **HERO** — Full viewport height, stunning background (image or gradient), large bold headline, subheadline, 2 CTA buttons, trust badges or stats below buttons
-3. **SERVICES / FEATURES** — Grid of 3-6 cards, each with an image, icon, title, description, and a link
-4. **ABOUT / STORY** — Two-column split: image left, compelling copy right (or reversed), with bullet points of key values
-5. **TESTIMONIALS / SOCIAL PROOF** — 3 cards with customer photo (use Unsplash), star rating, quote, name, and role
-6. **CONTACT / BOOKING FORM** — Full form with: name, email, phone, relevant fields (date for appointments, message for general), styled submit button with hover state
-7. **FOOTER** — Multi-column layout with logo/description, quick links, contact info, social links (SVG icons), newsletter input, copyright
+### 1. STICKY NAV
+- position sticky top-0 z-50, backdrop-filter blur(12px)
+- ${plan.theme === 'dark' ? 'background: rgba(15,15,26,0.85)' : 'background: rgba(255,255,255,0.85)'}, border-bottom 1px solid (${plan.theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'})
+- Logo (business name bold), nav links, CTA button (primary bg, pill shape)
+- Mobile hamburger that works via useState, reveals nav links vertically
 
-## IMAGES — MANDATORY
-ALWAYS embed real photos throughout every page. Never use colored placeholder divs or skip images.
+### 2. HERO (minHeight 100vh)
+- CSS: backgroundImage 'linear-gradient(to bottom, rgba(0,0,0,0.62) 0%, rgba(0,0,0,0.38) 100%), url(${heroImg})', backgroundSize cover, backgroundPosition center
+- Centered column: maxWidth 760px, padding 24px, textAlign center
+- H1: clamp(2.8rem, 5.5vw, 5rem) fontSize, fontWeight 800, letterSpacing -0.03em, color white, lineHeight 1.1
+- Subheadline: 1.15rem, rgba(255,255,255,0.82), marginTop 20px, lineHeight 1.7
+- Two buttons row: primary solid (${plan.primary} bg, white text, paddingY 14px, paddingX 32px, borderRadius 50px, fontWeight 600), secondary (transparent bg, 2px solid rgba(255,255,255,0.55), white text)
+- Stats row below buttons: "500+ Happy Clients · ★ 4.9 / 5 · Since 2015" — fontSize 0.875rem, rgba(255,255,255,0.65), marginTop 32px
 
-### PRIMARY: LoremFlickr (keyword-based, always relevant, no API key)
-Format: \`https://loremflickr.com/{width}/{height}/{keyword}?lock={number}\`
+### 3. SERVICES (3 cards)
+- Section paddingTop 96px, paddingBottom 96px, background ${plan.bg}
+- Centered label (uppercase, tracking-widest, 0.75rem, ${plan.primary}), H2 (2.5rem bold, ${plan.text}), subtitle (1rem, muted, maxWidth 560px centered)
+- Grid: gridTemplateColumns repeat(auto-fit,minmax(300px,1fr)), gap 28px, maxWidth 1200px, margin 56px auto 0
+- Each card: overflow hidden, borderRadius 14px, boxShadow '0 4px 20px rgba(0,0,0,0.08)', border '1px solid rgba(0,0,0,0.06)', transition 'all 0.25s ease'
+  - Image: width 100%, height 220px, objectFit cover — use svcImgs above
+  - Body: padding 28px
+  - SVG icon (28px, ${plan.primary}), h3 1.15rem fontWeight 700, p 0.925rem color muted lineHeight 1.6, "Learn more →" link in ${plan.primary}
+  - Hover: translateY(-5px), boxShadow '0 16px 44px rgba(0,0,0,0.14)'
 
-- The \`keyword\` should match the business context (see examples below)
-- The \`lock\` number makes it deterministic — use different numbers for different images on the same page
-- Use descriptive keywords for best results
+### 4. ABOUT (two-column)
+- Section paddingTop 96px, paddingBottom 96px, background ${plan.theme === 'dark' ? 'rgba(255,255,255,0.03)' : '#f8f9fa'}
+- Container maxWidth 1200px margin auto, flex row, gap 64px, alignItems center
+- Left (45%): img src=${aboutImg}, width 100%, height 500px, objectFit cover, borderRadius 16px, boxShadow '0 20px 60px rgba(0,0,0,0.15)'
+- Right (55%): colored badge pill, H2 2rem fontWeight 800 ${plan.text}, body text 1rem lineHeight 1.75, 3 bullet points with SVG check icon (${plan.primary}), CTA button (${plan.primary} bg)
+- On mobile (max-width 768px): stack vertically, img full width, height 300px
 
-**Keyword examples by business type:**
-- Hair salon/barber: \`salon\`, \`hairdresser\`, \`haircut\`, \`barber\`, \`beauty\`
-- Restaurant/café: \`restaurant\`, \`food\`, \`chef\`, \`coffee\`, \`dining\`
-- Gym/fitness: \`gym\`, \`fitness\`, \`workout\`, \`yoga\`, \`running\`
-- Spa/wellness: \`spa\`, \`massage\`, \`wellness\`, \`relaxation\`
-- Tech/SaaS: \`office\`, \`technology\`, \`coding\`, \`team\`, \`startup\`
-- Real estate: \`house\`, \`interior\`, \`architecture\`, \`apartment\`
-- Medical: \`doctor\`, \`medical\`, \`clinic\`, \`health\`
-- For people/team/testimonial avatars: \`person\`, \`woman\`, \`man\`, \`portrait\`
+### 5. TESTIMONIALS
+- Section paddingTop 96px, paddingBottom 96px, background ${plan.theme === 'dark' ? '#050507' : '#f3f4f6'}
+- Centered H2 above
+- Grid 3 cols (auto-fit, minmax(280px, 1fr)), gap 24px, maxWidth 1200px margin auto
+- Each card: padding 32px, background ${plan.theme === 'dark' ? '#111118' : 'white'}, borderRadius 14px, boxShadow subtle
+  - "★★★★★" in gold/amber color (#f59e0b), fontSize 1.1rem
+  - Quote: italic, 0.975rem, lineHeight 1.7, color muted, marginTop 12px
+  - Avatar row: img 48px circle (objectFit cover, borderRadius 50%), bold name + muted role — use the portrait URLs above
 
-**Usage examples:**
-\`\`\`
-Hero background: https://loremflickr.com/1920/1080/salon?lock=1
-Service image 1: https://loremflickr.com/600/400/haircut?lock=2
-Service image 2: https://loremflickr.com/600/400/hairdresser?lock=3
-Team photo:      https://loremflickr.com/300/300/woman,portrait?lock=4
-Testimonial 1:   https://loremflickr.com/100/100/woman?lock=5
-Testimonial 2:   https://loremflickr.com/100/100/man?lock=6
-About section:   https://loremflickr.com/800/600/salon,interior?lock=7
-\`\`\`
+### 6. CONTACT (two-column form + info)
+- Section paddingTop 96px, paddingBottom 96px, background ${plan.bg}
+- Container maxWidth 1200px margin auto, flex row gap 64px
+- Left: H2, form with Name / Email / Phone inputs + Message textarea
+  - Input style: width 100%, padding 13px 16px, border '1.5px solid rgba(0,0,0,0.12)', borderRadius 8, fontSize 0.95rem, outline none, on focus border-color ${plan.primary}
+  - Submit: width 100%, padding 14px, background ${plan.primary}, color white, fontWeight 600, borderRadius 8, cursor pointer
+- Right: address, phone, email, hours — each row with inline SVG icon (${plan.primary}), text
 
-### FALLBACK: Unsplash direct (when you know a specific photo ID works)
-Format: \`https://images.unsplash.com/photo-{ID}?auto=format&fit=crop&w={width}&q=80\`
+### 7. FOOTER
+- Background #111827 (always dark, regardless of theme)
+- Text colors: white headings, rgba(255,255,255,0.6) body text
+- 4 columns: brand (logo + tagline + social SVG icons in circles), Services, Company, Contact
+- Bottom bar: flex row, border-top rgba(255,255,255,0.1), copyright left, "Built with Forge" right
+- Padding: paddingTop 64px, paddingBottom 24px
 
-Known reliable IDs:
-- Salon interior: 1560066984-138dadb4c035
-- Restaurant: 1517248135467-4c7edcad34c4
-- Gym: 1534438327276-14e5300c3a48
-- Office/tech: 1497366216548-37526070297c
-- Abstract hero: 1557804483-ef3f8fbf14e4
+## OUTPUT FORMAT
+One sentence summary, then the complete \`\`\`tsx component. No truncation.`
+}
 
-For **hero section backgrounds**, always use a full-cover image with a dark overlay:
-\`<div style={{ backgroundImage: 'linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.4)), url(https://loremflickr.com/1920/1080/{keyword}?lock=1)', backgroundSize: 'cover', backgroundPosition: 'center' }}>\`
+// ─── API Routes ───────────────────────────────────────────────────────────────
 
-For **service/feature cards**: 600×400, different lock numbers
-For **team/testimonial avatars**: 120×120, keyword \`person\` or \`portrait\`
-For **about section split image**: 800×600
+const isAnthropic = () => !process.env.OPENAI_API_KEY && !!process.env.ANTHROPIC_API_KEY
 
-## COLOR SYSTEM — CSS DESIGN TOKENS (Critical for quality)
-Define a complete design system using CSS custom properties at the top of your component via a \`<style>\` tag or inline in a \`useEffect\`. Every color in the UI must reference these tokens — never hardcode random hex values.
-
-**Pattern to include in EVERY component:**
-\`\`\`tsx
-// At the top of your App component, inject CSS variables:
-useEffect(() => {
-  const style = document.createElement('style');
-  style.textContent = \`:root {
-    --color-primary: /* main brand color HSL */;
-    --color-primary-foreground: /* text on primary */;
-    --color-secondary: /* secondary accent */;
-    --color-background: /* main background */;
-    --color-surface: /* card/surface color */;
-    --color-border: /* border color */;
-    --color-text: /* main text */;
-    --color-text-muted: /* secondary text */;
-    --radius: 0.5rem;
-  }\`;
-  document.head.appendChild(style);
-  return () => document.head.removeChild(style);
-}, []);
-\`\`\`
-
-Then use Tailwind CSS classes that reference these, OR use inline style={{ color: 'var(--color-primary)' }} consistently.
-
-**Pre-defined palettes by business type:**
-- **Hair/Beauty**: primary #c084fc (rose-purple), bg #fdf4ff (lavender tint), surface #fff, accent #f59e0b (gold)
-- **Restaurants**: primary #dc2626 (deep red), bg #1c0a0a (near black), surface #2d1212, accent #f59e0b (gold)
-- **Fitness/Gym**: primary #3b82f6 (electric blue), bg #0a0f1e (dark navy), surface #111827, accent #f97316 (orange)
-- **Tech/SaaS**: primary #6366f1 (indigo), bg #0f0f1a (dark), surface #16161f, accent #06b6d4 (cyan)
-- **Medical/Spa**: primary #0891b2 (teal), bg #f0fdfe (light), surface #fff, accent #2dd4bf
-- **Real Estate**: primary #1e293b (slate), bg #f8fafc, surface #fff, accent #ca8a04 (gold)
-
-Use these for light OR dark themes — pick what suits the brand best.
-
-## TYPOGRAPHY
-- Headlines: very large, bold, tight letter-spacing (-0.04em), often gradient colored
-- Use text size scale: text-6xl → text-4xl → text-2xl → text-xl → text-base
-- Body text: text-gray-600 (light mode) or text-gray-300 (dark mode), leading-relaxed
-
-## INTERACTIVITY
-- Navigation: smooth scroll to sections using id anchors
-- Mobile nav: hamburger toggle that actually opens/closes
-- Forms: controlled inputs with useState, proper validation styling
-- Hover effects: scale-105, shadow-xl, color transitions on all cards and buttons
-- Images: overflow-hidden with hover zoom (scale-110 transition)
-- Buttons: always have hover states + active states + transition
-
-## CONTENT QUALITY
-Generate REAL, SPECIFIC content — not placeholders:
-- Real service names with actual prices (e.g., "Brazilian Blowout — $120", "Men's Haircut — $45")
-- Real-sounding team members with titles
-- Specific testimonials mentioning real details
-- Actual address format, phone format, email format
-- Business hours
-
-## SPACING & TYPOGRAPHY — enforce these defaults
-- Section padding: \`padding: '96px 24px'\` (py-24 equivalent), never less than 64px
-- Container: \`maxWidth: 1200px, margin: '0 auto'\`
-- Card padding: minimum 32px
-- Headlines: \`fontSize: 'clamp(2.5rem, 5vw, 4rem)', fontWeight: 800, letterSpacing: '-0.04em', lineHeight: 1.1\`
-- Body text: \`fontSize: 16px, lineHeight: 1.7, color: var(--color-text-muted)\`
-- Subheadings: \`fontSize: 'clamp(1.5rem, 3vw, 2.25rem)', fontWeight: 700\`
-
-## QUALITY BAR — Design references to match
-Your output must look like it was designed with the same quality as **Stripe**, **Linear**, or **Framer** landing pages. Specifically:
-- Generous whitespace — sections breathe
-- Consistent visual hierarchy — clear H1 > H2 > body size steps
-- Depth through layering — shadows, subtle borders, glass effects
-- Every interactive element has hover + focus states
-- Images are never skipped — every section that benefits from an image has one
-- The hero would make someone immediately want to book/buy/sign up
-
-NEVER generate a sparse, minimal, or incomplete page. Always go full, rich, and production-ready.`
-
-app.post('/api/chat', async (req, res) => {
-  const { messages, context } = req.body
-
-  const systemPrompt = context
-    ? `${SYSTEM_PROMPT}\n\n---\nThe user is building: "${context}"\n\nMake sure ALL content, colors, images, and design choices are specifically tailored to this type of business/product. Do not use generic content.`
-    : SYSTEM_PROMPT
-
-  // Prefer OpenAI if key is set, otherwise fall back to Anthropic
-  if (process.env.OPENAI_API_KEY) {
-    try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+// Stage 1: Plan
+app.post('/api/plan', async (req, res) => {
+  const { message } = req.body
+  try {
+    let text
+    if (isAnthropic()) {
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': process.env.ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 1500,
+          system: PLANNER_PROMPT,
+          messages: [{ role: 'user', content: message }],
+        }),
+      })
+      const d = await r.json()
+      text = d.content?.[0]?.text
+    } else {
+      const r = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
         },
         body: JSON.stringify({
-          model: 'gpt-4o',
-          max_tokens: 8192,
+          model: 'gpt-4o-mini',
+          max_tokens: 1500,
+          response_format: { type: 'json_object' },
           messages: [
-            { role: 'system', content: systemPrompt },
-            ...messages,
+            { role: 'system', content: PLANNER_PROMPT },
+            { role: 'user', content: message },
           ],
         }),
       })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        return res.status(response.status).json({
-          error: data.error?.message || 'OpenAI API error',
-        })
-      }
-
-      res.json({ content: data.choices[0].message.content })
-    } catch (err) {
-      res.status(500).json({ error: String(err) })
+      const d = await r.json()
+      text = d.choices?.[0]?.message?.content
     }
 
-  } else if (process.env.ANTHROPIC_API_KEY) {
-    try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const plan = JSON.parse(text)
+    const photos = PHOTOS[plan.business_type] || PHOTOS.generic
+    res.json({ plan, photos })
+  } catch (e) {
+    console.error('Plan error:', e)
+    res.status(500).json({ error: String(e) })
+  }
+})
+
+// Stage 2: Build (streaming SSE)
+app.post('/api/build', async (req, res) => {
+  const { message, plan, photos, history = [] } = req.body
+  const systemPrompt = makeBuilderPrompt(plan, photos)
+
+  res.setHeader('Content-Type', 'text/event-stream')
+  res.setHeader('Cache-Control', 'no-cache')
+  res.setHeader('Connection', 'keep-alive')
+
+  const msgs = [
+    ...history.filter(h => h.role === 'user' || h.role === 'assistant').slice(-6),
+    { role: 'user', content: message },
+  ]
+
+  try {
+    if (isAnthropic()) {
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -206,30 +322,56 @@ app.post('/api/chat', async (req, res) => {
         body: JSON.stringify({
           model: 'claude-sonnet-4-6',
           max_tokens: 8000,
+          stream: true,
           system: systemPrompt,
-          messages,
+          messages: msgs,
         }),
       })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        return res.status(response.status).json({
-          error: data.error?.message || 'Anthropic API error',
-        })
+      for await (const chunk of r.body) {
+        const lines = new TextDecoder().decode(chunk).split('\n').filter(l => l.startsWith('data:'))
+        for (const line of lines) {
+          try {
+            const j = JSON.parse(line.slice(5))
+            if (j.type === 'content_block_delta' && j.delta?.text) {
+              res.write(`data: ${JSON.stringify({ content: j.delta.text })}\n\n`)
+            }
+          } catch { /* ignore parse errors */ }
+        }
       }
-
-      res.json({ content: data.content[0].text })
-    } catch (err) {
-      res.status(500).json({ error: String(err) })
+    } else {
+      const r = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          max_tokens: 8000,
+          stream: true,
+          messages: [{ role: 'system', content: systemPrompt }, ...msgs],
+        }),
+      })
+      for await (const chunk of r.body) {
+        const lines = new TextDecoder().decode(chunk).split('\n').filter(l => l.startsWith('data:'))
+        for (const line of lines) {
+          const d = line.slice(5).trim()
+          if (d === '[DONE]') continue
+          try {
+            const j = JSON.parse(d)
+            const c = j.choices?.[0]?.delta?.content
+            if (c) res.write(`data: ${JSON.stringify({ content: c })}\n\n`)
+          } catch { /* ignore */ }
+        }
+      }
     }
-
-  } else {
-    res.status(500).json({
-      error: 'No API key found. Add OPENAI_API_KEY or ANTHROPIC_API_KEY to your .env file.',
-    })
+    res.write('data: [DONE]\n\n')
+  } catch (e) {
+    console.error('Build error:', e)
+    res.write(`data: ${JSON.stringify({ error: String(e) })}\n\n`)
   }
+  res.end()
 })
 
-const PORT = 3001
-app.listen(PORT, () => console.log(`✓ API server running on http://localhost:${PORT}`))
+const PORT = process.env.PORT || 3001
+app.listen(PORT, () => console.log(`Server on :${PORT}`))

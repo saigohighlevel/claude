@@ -1,62 +1,51 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { useNavigate, useParams, useLocation } from 'react-router-dom'
-import {
-  Sparkles, ArrowLeft, Code2, Eye, Rocket, Share2,
-  RotateCcw, Send, ChevronDown, Monitor,
-  Tablet, Smartphone, X, Check, Loader2, Copy,
-  Terminal, Maximize2, ThumbsUp, ThumbsDown,
-  RefreshCw, Wand2, ChevronRight, Download
-} from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 
-// ─── AI call ────────────────────────────────────────────────────────────────
-async function callAI(messages: { role: string; content: string }[], context: string) {
-  const response = await fetch('/api/chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages, context }),
-  })
-  const data = await response.json()
-  if (!response.ok) throw new Error(data.error || 'AI request failed')
-  return data.content as string
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface Plan {
+  business_name: string
+  business_type: string
+  tagline: string
+  primary: string
+  accent: string
+  bg: string
+  text: string
+  theme: string
+  hero_headline: string
+  hero_sub: string
+  hero_cta: string
+  services: Array<{ title: string; desc: string }>
+  about_headline: string
+  about_body: string
+  testimonials: Array<{ name: string; role: string; quote: string }>
+  cta_headline: string
+  phone: string
+  email: string
+  address: string
 }
 
-// ─── Loading skeleton shown while AI generates first time ───────────────────
-const LOADING_HTML = `<!DOCTYPE html><html><head><meta charset="UTF-8"/>
-<style>
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{background:#0f172a;font-family:system-ui,-apple-system,sans-serif;overflow:hidden}
-  .shimmer{background:linear-gradient(90deg,rgba(255,255,255,0.03) 0%,rgba(255,255,255,0.08) 50%,rgba(255,255,255,0.03) 100%);background-size:200% 100%;animation:shimmer 1.8s infinite}
-  @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
-  .pulse{animation:pulse 2s ease-in-out infinite}
-  @keyframes pulse{0%,100%{opacity:.4}50%{opacity:.8}}
-  .spin{animation:spin .9s linear infinite}
-  @keyframes spin{to{transform:rotate(360deg)}}
-</style></head>
-<body>
-  <div style="height:56px;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;padding:0 24px;gap:32px">
-    <div class="shimmer" style="width:80px;height:20px;border-radius:6px"></div>
-    <div style="display:flex;gap:24px">
-      <div class="shimmer" style="width:56px;height:14px;border-radius:4px"></div>
-      <div class="shimmer" style="width:56px;height:14px;border-radius:4px"></div>
-      <div class="shimmer" style="width:56px;height:14px;border-radius:4px"></div>
-      <div class="shimmer" style="width:56px;height:14px;border-radius:4px"></div>
-    </div>
-    <div class="shimmer" style="width:100px;height:32px;border-radius:8px;margin-left:auto"></div>
-  </div>
-  <div style="height:calc(100vh - 56px);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:20px">
-    <div style="width:48px;height:48px;border:3px solid rgba(99,102,241,0.15);border-top-color:#6366f1;border-radius:50%" class="spin"></div>
-    <div style="text-align:center">
-      <div style="color:rgba(255,255,255,0.8);font-size:15px;font-weight:600;margin-bottom:6px">Building your app...</div>
-      <div style="color:rgba(255,255,255,0.35);font-size:13px">Forge AI is crafting something beautiful</div>
-    </div>
-    <div style="display:flex;gap:6px;margin-top:8px">
-      ${[0, 0.3, 0.6].map(d => `<div style="width:6px;height:6px;border-radius:50%;background:#6366f1;animation:pulse 1.4s ${d}s ease-in-out infinite"></div>`).join('')}
-    </div>
-  </div>
-</body></html>`
+interface Message {
+  id: number
+  role: 'user' | 'assistant' | 'plan'
+  content: string
+  plan?: Plan
+}
 
-// ─── Live Preview iframe ────────────────────────────────────────────────────
-function LivePreview({ code, isGenerating }: { code: string; isGenerating: boolean }) {
+// ─── Loading HTML ─────────────────────────────────────────────────────────────
+
+const LOADING_HTML = `<!DOCTYPE html><html><head><style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#f9fafb;display:flex;align-items:center;justify-content:center;height:100vh;font-family:Inter,system-ui,sans-serif}
+.wrap{text-align:center;display:flex;flex-direction:column;align-items:center;gap:16px}
+.ring{width:44px;height:44px;border-radius:50%;border:3px solid #ede9fe;border-top-color:#7c3aed;animation:spin 0.75s linear infinite}
+p{color:#6b7280;font-size:14px;font-weight:500}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style></head><body><div class="wrap"><div class="ring"></div><p>Building your website...</p></div></body></html>`
+
+// ─── Live Preview ─────────────────────────────────────────────────────────────
+
+function LivePreview({ code, viewport }: { code: string; viewport: number }) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
 
   const setIframeSrc = useCallback((html: string) => {
@@ -66,16 +55,9 @@ function LivePreview({ code, isGenerating }: { code: string; isGenerating: boole
     return () => URL.revokeObjectURL(url)
   }, [])
 
-  // Show skeleton when generating with no code yet
   useEffect(() => {
-    if (isGenerating && !code) {
-      return setIframeSrc(LOADING_HTML)
-    }
-  }, [isGenerating, code, setIframeSrc])
+    if (!code) return setIframeSrc(LOADING_HTML)
 
-  // Render actual code
-  useEffect(() => {
-    if (!code) return
     const processed = code
       .replace(/^import\s+.*$/gm, '')
       .replace(/export\s+default\s+function\s+App/g, 'function App')
@@ -92,16 +74,12 @@ function LivePreview({ code, isGenerating }: { code: string; isGenerating: boole
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
-  <style>
-    *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:'Inter',system-ui,-apple-system,sans-serif}
-    html{scroll-behavior:smooth}
-  </style>
+  <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Inter',system-ui,sans-serif}html{scroll-behavior:smooth}</style>
 </head>
 <body>
   <div id="root"></div>
   <script type="text/babel" data-presets="react,typescript">
-const { useState, useEffect, useRef, useCallback, useMemo, useReducer } = React;
+const { useState, useEffect, useRef, useCallback, useMemo } = React;
 ${processed}
 ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
   </script>
@@ -110,500 +88,545 @@ ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(
     return setIframeSrc(html)
   }, [code, setIframeSrc])
 
+  const isNarrowed = viewport < 1024
+
   return (
-    <iframe
-      ref={iframeRef}
-      style={{ width: '100%', height: '100%', border: 'none', background: '#0f172a', display: 'block' }}
-      sandbox="allow-scripts"
-      title="App Preview"
-    />
+    <div style={{
+      flex: 1,
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: isNarrowed ? 'flex-start' : 'stretch',
+      background: isNarrowed ? '#e5e7eb' : '#f3f4f6',
+      overflow: 'auto',
+      padding: isNarrowed ? '24px' : '0',
+    }}>
+      <iframe
+        ref={iframeRef}
+        title="Preview"
+        sandbox="allow-scripts"
+        style={{
+          width: isNarrowed ? `${viewport}px` : '100%',
+          height: isNarrowed ? 'auto' : '100%',
+          minHeight: isNarrowed ? '900px' : '100%',
+          border: 'none',
+          background: 'white',
+          borderRadius: isNarrowed ? 12 : 0,
+          boxShadow: isNarrowed ? '0 4px 32px rgba(0,0,0,0.18)' : 'none',
+          display: 'block',
+        }}
+      />
+    </div>
   )
 }
 
-// ─── Syntax-highlighted code panel ─────────────────────────────────────────
+// ─── Code Panel ───────────────────────────────────────────────────────────────
+
 function CodePanel({ code }: { code: string }) {
   const [copied, setCopied] = useState(false)
-  const copyCode = () => {
+
+  const copy = () => {
     navigator.clipboard.writeText(code)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
-  const lines = code.split('\n')
-  const colorize = (line: string) => {
-    if (line.trim().startsWith('//')) return <span style={{ color: '#64748b' }}>{line}</span>
-    if (line.trim().startsWith('import')) return <span><span style={{ color: '#c084fc' }}>import</span><span style={{ color: '#94a3b8' }}>{line.slice(6)}</span></span>
-    if (line.includes('export default')) return <span><span style={{ color: '#c084fc' }}>export default </span><span style={{ color: '#818cf8' }}>function</span><span style={{ color: '#fbbf24' }}>{line.split('function')[1] || ''}</span></span>
-    if (line.includes('const ') || line.includes('let ') || line.includes('var ')) {
-      return <span><span style={{ color: '#818cf8' }}>{line.match(/\b(const|let|var)\b/)?.[0] || ''}</span><span style={{ color: '#94a3b8' }}>{line.replace(/\b(const|let|var)\b/, '')}</span></span>
-    }
-    if (line.trim().startsWith('return')) return <span><span style={{ color: '#c084fc' }}>return</span><span style={{ color: '#94a3b8' }}>{line.slice(line.indexOf('return') + 6)}</span></span>
-    return <span style={{ color: '#94a3b8' }}>{line}</span>
+
+  const download = () => {
+    const blob = new Blob([code], { type: 'text/plain' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = 'App.tsx'
+    a.click()
   }
+
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#0d0d14' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1px solid rgba(99,102,241,0.1)', background: '#0a0a0f' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Terminal size={13} color="#6366f1" />
-          <span style={{ fontSize: 12, color: '#64748b', fontFamily: 'monospace' }}>App.tsx</span>
-          <div style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 4, padding: '1px 6px', fontSize: 10, color: '#818cf8' }}>TypeScript</div>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#1e1e2e' }}>
+      {/* Toolbar */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', background: '#13131f', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 5 }}>
+            <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#ff5f57' }} />
+            <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#febc2e' }} />
+            <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#28c840' }} />
+          </div>
+          <span style={{ fontSize: 12, color: '#6b7280', fontFamily: 'monospace', marginLeft: 6 }}>App.tsx</span>
+          <span style={{ background: 'rgba(124,58,237,0.2)', border: '1px solid rgba(124,58,237,0.3)', borderRadius: 4, padding: '1px 8px', fontSize: 11, color: '#a78bfa' }}>TypeScript</span>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={copyCode} style={{ background: copied ? 'rgba(16,185,129,0.1)' : 'rgba(255,255,255,0.04)', border: `1px solid ${copied ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.08)'}`, borderRadius: 6, padding: '4px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: copied ? '#10b981' : '#64748b', fontFamily: 'inherit', transition: 'all 0.2s' }}>
-            {copied ? <><Check size={11} /> Copied!</> : <><Copy size={11} /> Copy code</>}
+          <button onClick={copy} style={{ background: copied ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.06)', border: `1px solid ${copied ? 'rgba(16,185,129,0.35)' : 'rgba(255,255,255,0.1)'}`, borderRadius: 6, padding: '5px 12px', cursor: 'pointer', fontSize: 12, color: copied ? '#34d399' : '#9ca3af', fontFamily: 'inherit', transition: 'all 0.2s' }}>
+            {copied ? '✓ Copied' : 'Copy'}
           </button>
-          <button onClick={() => { const blob = new Blob([code], { type: 'text/plain' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'App.tsx'; a.click() }} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#64748b', fontFamily: 'inherit' }}>
-            <Download size={11} /> Download
+          <button onClick={download} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, padding: '5px 12px', cursor: 'pointer', fontSize: 12, color: '#9ca3af', fontFamily: 'inherit' }}>
+            Download
           </button>
         </div>
       </div>
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 0' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'monospace', fontSize: 12 }}>
-          <tbody>
-            {lines.map((line, i) => (
-              <tr key={i} style={{ lineHeight: 1.7 }}>
-                <td style={{ paddingLeft: 16, paddingRight: 16, color: '#2d3748', textAlign: 'right', userSelect: 'none', minWidth: 40, width: 40, fontSize: 11 }}>{i + 1}</td>
-                <td style={{ paddingRight: 20, whiteSpace: 'pre' }}>{colorize(line)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {/* Code */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
+        <pre style={{ fontSize: 13, lineHeight: 1.75, color: '#cdd6f4', fontFamily: "'JetBrains Mono','Fira Code','Cascadia Code',monospace", whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{code}</pre>
       </div>
     </div>
   )
 }
 
-// ─── Types ──────────────────────────────────────────────────────────────────
-type Message = {
-  id: string
-  role: 'user' | 'assistant'
-  content: string
-  timestamp: Date
-  thinking?: boolean
-  liked?: boolean | null
-}
+// ─── Plan Card ────────────────────────────────────────────────────────────────
 
-// ─── Visual Edits quick-action panel ────────────────────────────────────────
-const VISUAL_EDITS = [
-  { label: 'Dark mode', prompt: 'Convert to a beautiful dark theme with deep backgrounds and light text' },
-  { label: 'Light mode', prompt: 'Convert to a clean light theme with white backgrounds and dark text' },
-  { label: 'Add animations', prompt: 'Add smooth CSS animations — fade in on scroll, hover effects, transitions on all interactive elements' },
-  { label: 'More minimal', prompt: 'Make the design more minimal and clean — reduce visual clutter, increase whitespace' },
-  { label: 'Bolder design', prompt: 'Make the design bolder — bigger typography, stronger colors, more visual impact' },
-  { label: 'Add gallery', prompt: 'Add an image gallery section with a grid of high-quality photos from Unsplash relevant to this business' },
-  { label: 'Fix mobile', prompt: 'Make it fully responsive — fix all layouts for mobile, add proper hamburger menu, ensure touch-friendly targets' },
-  { label: 'Better hero', prompt: 'Redesign the hero section to be more impactful — full screen, compelling headline, better background image, stats/badges' },
-  { label: 'Add pricing', prompt: 'Add a beautiful pricing section with 3 tiers (Basic, Pro, Enterprise), feature lists, and a highlighted "Most popular" card' },
-  { label: 'Add FAQ', prompt: 'Add an expandable FAQ section with 6-8 relevant questions and detailed answers' },
-]
-
-function VisualEditsPanel({ onSelect, onClose }: { onSelect: (prompt: string) => void; onClose: () => void }) {
+function PlanCard({ plan }: { plan: Plan }) {
   return (
-    <div style={{ borderTop: '1px solid rgba(99,102,241,0.1)', background: 'rgba(10,10,15,0.8)', padding: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Wand2 size={12} color="#818cf8" />
-          <span style={{ fontSize: 11, fontWeight: 600, color: '#818cf8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Quick edits</span>
+    <div style={{ background: '#faf5ff', border: '1px solid #ddd6fe', borderRadius: 12, padding: '14px 16px', margin: '4px 0 8px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <div style={{ width: 26, height: 26, borderRadius: 7, background: 'linear-gradient(135deg,#7c3aed,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0 }}>✦</div>
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#5b21b6' }}>Plan ready</div>
+          <div style={{ fontSize: 11, color: '#8b5cf6' }}>{plan.business_type} · {plan.theme} theme</div>
         </div>
-        <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>
-          <X size={12} color="#475569" />
-        </button>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+          <div style={{ width: 14, height: 14, borderRadius: 3, background: plan.primary }} title={`Primary: ${plan.primary}`} />
+          <div style={{ width: 14, height: 14, borderRadius: 3, background: plan.accent }} title={`Accent: ${plan.accent}`} />
+          <div style={{ width: 14, height: 14, borderRadius: 3, background: plan.bg, border: '1px solid #e5e7eb' }} title={`BG: ${plan.bg}`} />
+        </div>
       </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-        {VISUAL_EDITS.map(edit => (
-          <button key={edit.label} onClick={() => { onSelect(edit.prompt); onClose() }} style={{ background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 20, padding: '5px 12px', fontSize: 12, color: '#94a3b8', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(99,102,241,0.15)'; e.currentTarget.style.color = '#c7d2fe'; e.currentTarget.style.borderColor = 'rgba(99,102,241,0.35)' }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(99,102,241,0.06)'; e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.borderColor = 'rgba(99,102,241,0.15)' }}
-          >
-            {edit.label}
-          </button>
+      <div style={{ fontSize: 14, fontWeight: 700, color: '#1f2937', marginBottom: 2 }}>{plan.business_name}</div>
+      <div style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.5, marginBottom: 8 }}>{plan.tagline}</div>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {plan.services.map(s => (
+          <span key={s.title} style={{ background: '#ede9fe', color: '#6d28d9', fontSize: 11, borderRadius: 20, padding: '2px 9px', fontWeight: 500 }}>{s.title}</span>
         ))}
       </div>
     </div>
   )
 }
 
-// ─── Main Builder ────────────────────────────────────────────────────────────
-export default function Builder() {
-  const { projectId } = useParams<{ projectId: string }>()
-  const navigate = useNavigate()
-  const location = useLocation()
-  const state = location.state as { prompt?: string; project?: { name: string } } | null
+// ─── Generating Indicator ─────────────────────────────────────────────────────
 
-  const initialPrompt = state?.prompt || 'Build a modern task manager app'
-  const projectName = state?.project?.name || initialPrompt.split(' ').slice(0, 4).join(' ')
+function GeneratingIndicator({ stage }: { stage: 'planning' | 'building' }) {
+  return (
+    <div style={{ background: '#faf5ff', border: '1px solid #ede9fe', borderRadius: 12, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {/* Planning step */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        {stage === 'planning' ? (
+          <div style={{ width: 20, height: 20, borderRadius: '50%', border: '2.5px solid #ede9fe', borderTopColor: '#7c3aed', animation: 'forge-spin 0.75s linear infinite', flexShrink: 0 }} />
+        ) : (
+          <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 11, color: 'white' }}>✓</div>
+        )}
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: stage === 'planning' ? '#5b21b6' : '#7c3aed' }}>
+            {stage === 'planning' ? 'Planning your website...' : 'Plan complete'}
+          </div>
+          {stage === 'planning' && <div style={{ fontSize: 11, color: '#8b5cf6', marginTop: 1 }}>Choosing layout, colors &amp; images</div>}
+        </div>
+      </div>
+      {/* Building step */}
+      {stage === 'building' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 20, height: 20, borderRadius: '50%', border: '2.5px solid #ede9fe', borderTopColor: '#7c3aed', animation: 'forge-spin 0.75s linear infinite', flexShrink: 0 }} />
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#5b21b6' }}>Building React component...</div>
+            <div style={{ fontSize: 11, color: '#8b5cf6', marginTop: 1 }}>Generating all 7 sections</div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Quick Actions ────────────────────────────────────────────────────────────
+
+const QUICK_ACTIONS = [
+  'Make the hero more dramatic',
+  'Add dark mode toggle',
+  'Improve mobile layout',
+  'Add an FAQ section',
+  'Make the pricing section pop',
+  'Add a gallery section',
+]
+
+// ─── Main Builder Component ───────────────────────────────────────────────────
+
+export default function Builder() {
+  const navigate = useNavigate()
 
   const [view, setView] = useState<'preview' | 'code'>('preview')
-  const [viewport, setViewport] = useState<'desktop' | 'tablet' | 'mobile'>('desktop')
-  const [messages, setMessages] = useState<Message[]>([
-    { id: 'init', role: 'assistant', content: '', timestamp: new Date(), thinking: true },
-  ])
-  const [input, setInput] = useState('')
-  const [sending, setSending] = useState(false)
-  const [generating, setGenerating] = useState(true)
+  const [viewport, setViewport] = useState(1024)
+  const [messages, setMessages] = useState<Message[]>([])
   const [code, setCode] = useState('')
+  const [plan, setPlan] = useState<Plan | null>(null)
+  const [photos, setPhotos] = useState<Record<string, string> | null>(null)
+  const [input, setInput] = useState('')
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [genStage, setGenStage] = useState<'planning' | 'building'>('planning')
   const [deployed, setDeployed] = useState(false)
-  const [deploying, setDeploying] = useState(false)
-  const [shareMenu, setShareMenu] = useState(false)
-  const [showVisualEdits, setShowVisualEdits] = useState(false)
+  const [deployUrl, setDeployUrl] = useState('')
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const hasAutoGenerated = useRef(false)
+  const planRef = useRef<Plan | null>(null)
+  const photosRef = useRef<Record<string, string> | null>(null)
 
+  // Keep refs in sync
+  useEffect(() => { planRef.current = plan }, [plan])
+  useEffect(() => { photosRef.current = photos }, [photos])
+
+  // Scroll chat to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [messages, isGenerating])
 
-  // Auto-generate on first load
-  const didInitRef = useRef(false)
+  // Override body background for light theme
   useEffect(() => {
-    if (didInitRef.current) return
-    didInitRef.current = true
-    setGenerating(true)
-    callAI([{ role: 'user', content: initialPrompt }], initialPrompt)
-      .then(aiText => {
-        const codeMatch = aiText.match(/```(?:tsx?|jsx?)\n([\s\S]*?)```/)
-        if (codeMatch) setCode(codeMatch[1].trim())
-        const displayText = aiText.replace(/```(?:tsx?|jsx?)\n[\s\S]*?```/g, '').trim()
-          || `✨ Your app is ready! I've built a complete, production-quality design. Ask me to make any changes.`
-        setMessages([{ id: 'init', role: 'assistant', content: displayText, timestamp: new Date() }])
-      })
-      .catch(err => {
-        setMessages([{ id: 'init', role: 'assistant', content: `⚠️ ${err.message || 'Something went wrong. Check your API key in the .env file.'}`, timestamp: new Date() }])
-      })
-      .finally(() => setGenerating(false))
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    const prev = document.body.style.background
+    document.body.style.background = '#f9fafb'
+    return () => { document.body.style.background = prev }
   }, [])
 
-  const sendMessage = async (overrideInput?: string) => {
-    const text = overrideInput ?? input
-    if (!text.trim() || sending) return
-    const userMsg: Message = { id: Date.now().toString(), role: 'user', content: text, timestamp: new Date() }
-    const thinkingMsg: Message = { id: (Date.now() + 1).toString(), role: 'assistant', content: '', timestamp: new Date(), thinking: true }
-    setMessages(m => [...m, userMsg, thinkingMsg])
-    setInput('')
-    setSending(true)
-    setGenerating(true)
+  // Auto-generate on first load
+  useEffect(() => {
+    if (hasAutoGenerated.current) return
+    hasAutoGenerated.current = true
+    const prompt = sessionStorage.getItem('buildPrompt')
+      || 'Build a website for a premium hair salon called "Luxe & Flow" in Miami Beach — specializing in cuts, color, and bridal styling'
+    sessionStorage.removeItem('buildPrompt')
+    setMessages([{ id: Date.now(), role: 'user', content: prompt }])
+    generate(prompt, null, null, [])
+  }, [])
+
+  const generate = async (
+    userMessage: string,
+    existingPlan: Plan | null,
+    existingPhotos: Record<string, string> | null,
+    history: Message[]
+  ) => {
+    setIsGenerating(true)
+    let activePlan = existingPlan
+    let activePhotos = existingPhotos
+
+    // Stage 1: Plan (only on first message)
+    if (!activePlan) {
+      setGenStage('planning')
+      try {
+        const r = await fetch('/api/plan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: userMessage }),
+        })
+        const data = await r.json()
+        activePlan = data.plan
+        activePhotos = data.photos
+        setPlan(data.plan)
+        setPhotos(data.photos)
+        setMessages(prev => [...prev, {
+          id: Date.now() + 1,
+          role: 'plan',
+          content: '',
+          plan: data.plan,
+        }])
+      } catch (e) {
+        console.error('Plan failed:', e)
+        setIsGenerating(false)
+        return
+      }
+    }
+
+    // Stage 2: Build (streaming)
+    setGenStage('building')
+    const aiMsgId = Date.now() + 2
+    setMessages(prev => [...prev, { id: aiMsgId, role: 'assistant', content: '' }])
+
     try {
-      const history = messages.filter(m => !m.thinking).map(m => ({ role: m.role, content: m.content }))
-      history.push({ role: 'user', content: text })
-      const aiText = await callAI(history, initialPrompt)
-      const codeMatch = aiText.match(/```(?:tsx?|jsx?)\n([\s\S]*?)```/)
-      if (codeMatch) setCode(codeMatch[1].trim())
-      const displayText = aiText.replace(/```(?:tsx?|jsx?)\n[\s\S]*?```/g, '').trim()
-        || 'Done! The preview has been updated.'
-      setMessages(m => m.map(msg => msg.thinking ? { ...msg, content: displayText, thinking: false } : msg))
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Something went wrong.'
-      setMessages(m => m.map(msg => msg.thinking ? { ...msg, content: `⚠️ ${errorMsg}`, thinking: false } : msg))
+      const buildHistory = history
+        .filter(m => m.role === 'user' || m.role === 'assistant')
+        .slice(-6)
+        .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }))
+
+      const r = await fetch('/api/build', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: userMessage,
+          plan: activePlan,
+          photos: activePhotos,
+          history: buildHistory,
+        }),
+      })
+
+      const reader = r.body!.getReader()
+      const decoder = new TextDecoder()
+      let accumulated = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        const text = decoder.decode(value)
+        for (const line of text.split('\n')) {
+          if (!line.startsWith('data:')) continue
+          const d = line.slice(5).trim()
+          if (d === '[DONE]') continue
+          try {
+            const j = JSON.parse(d)
+            if (j.content) {
+              accumulated += j.content
+              setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, content: accumulated } : m))
+              // Extract code and update preview in real-time
+              const match = accumulated.match(/```(?:tsx?|jsx?)?\n([\s\S]+?)(?:```|$)/)
+              if (match) setCode(match[1])
+            }
+          } catch { /* ignore */ }
+        }
+      }
+    } catch (e) {
+      console.error('Build failed:', e)
     }
-    setSending(false)
-    setGenerating(false)
+
+    setIsGenerating(false)
   }
 
-  const regenerateLast = () => {
-    const lastUser = [...messages].reverse().find(m => m.role === 'user')
-    if (lastUser) sendMessage(lastUser.content)
+  const sendMessage = () => {
+    const msg = input.trim()
+    if (!msg || isGenerating) return
+    setInput('')
+    const userMsg: Message = { id: Date.now(), role: 'user', content: msg }
+    const currentMessages = [...messages, userMsg]
+    setMessages(currentMessages)
+    generate(msg, planRef.current, photosRef.current, currentMessages)
   }
 
-  const likeMessage = (id: string, liked: boolean) => {
-    setMessages(m => m.map(msg => msg.id === id ? { ...msg, liked } : msg))
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      sendMessage()
+    }
   }
 
-  const copyMessage = (content: string) => {
-    navigator.clipboard.writeText(content)
-  }
-
-  const handleDeploy = async () => {
-    if (deploying || deployed) return
-    setDeploying(true)
-    await new Promise(r => setTimeout(r, 2200))
-    setDeploying(false)
+  const handleDeploy = () => {
     setDeployed(true)
+    const slug = plan?.business_name?.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') || 'my-site'
+    setDeployUrl(`https://${slug}-${Math.random().toString(36).slice(2, 6)}.forge.app`)
   }
 
-  const viewportWidth = viewport === 'desktop' ? '100%' : viewport === 'tablet' ? '768px' : '390px'
-
-  // Context-aware suggestions based on the initial prompt
-  const getSuggestions = () => {
-    const p = initialPrompt.toLowerCase()
-    if (p.includes('salon') || p.includes('hair') || p.includes('barber') || p.includes('beauty')) {
-      return ['Add online booking form', 'Show before/after gallery', 'Add team & stylists section', 'Add service pricing menu']
-    }
-    if (p.includes('restaurant') || p.includes('cafe') || p.includes('food') || p.includes('bar')) {
-      return ['Add full menu with prices', 'Add reservation form', 'Show chef & team section', 'Add events/specials section']
-    }
-    if (p.includes('gym') || p.includes('fitness') || p.includes('yoga') || p.includes('sport')) {
-      return ['Add class schedule', 'Add membership pricing', 'Show transformation gallery', 'Add trainer profiles']
-    }
-    if (p.includes('saas') || p.includes('app') || p.includes('software') || p.includes('tool')) {
-      return ['Add pricing tiers', 'Add feature comparison table', 'Add integration logos', 'Add demo video section']
-    }
-    return ['Add dark mode', 'Add pricing section', 'Make it fully responsive', 'Add contact form']
+  const getDescription = (content: string) => {
+    const before = content.split('```')[0].trim()
+    return before || null
   }
 
   return (
-    <div style={{ height: '100vh', background: '#080810', color: '#f1f5f9', display: 'flex', flexDirection: 'column', overflow: 'hidden', fontFamily: 'Inter, system-ui, sans-serif' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#f9fafb', fontFamily: 'Inter, system-ui, sans-serif', color: '#111827' }}>
 
-      {/* ── Top bar ── */}
-      <header style={{ height: 52, background: 'rgba(8,8,16,0.98)', borderBottom: '1px solid rgba(99,102,241,0.12)', display: 'flex', alignItems: 'center', padding: '0 14px', gap: 10, flexShrink: 0, backdropFilter: 'blur(20px)' }}>
+      {/* ── Top bar ─────────────────────────────────────────────────────────── */}
+      <header style={{ height: 52, background: 'white', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 10, flexShrink: 0, zIndex: 20 }}>
+        {/* Back */}
+        <button
+          onClick={() => navigate('/dashboard')}
+          style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', padding: '6px 8px', borderRadius: 6, fontSize: 13, fontFamily: 'inherit', transition: 'color 0.15s' }}
+          onMouseEnter={e => (e.currentTarget.style.color = '#111827')}
+          onMouseLeave={e => (e.currentTarget.style.color = '#6b7280')}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+          Forge
+        </button>
 
-        {/* Left */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
-          <button onClick={() => navigate('/dashboard')} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 7, width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b', transition: 'all 0.15s' }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#f1f5f9' }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.color = '#64748b' }}
-          ><ArrowLeft size={14} /></button>
+        <div style={{ width: 1, height: 18, background: '#e5e7eb' }} />
 
-          <div style={{ width: 1, height: 18, background: 'rgba(99,102,241,0.15)' }} />
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-            <div style={{ width: 26, height: 26, borderRadius: 6, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Sparkles size={12} color="white" />
-            </div>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9', lineHeight: 1.2, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{projectName}</div>
-              <div style={{ fontSize: 10, color: '#475569', display: 'flex', alignItems: 'center', gap: 3 }}>
-                <div style={{ width: 5, height: 5, borderRadius: '50%', background: generating ? '#f59e0b' : '#10b981', transition: 'background 0.3s' }} />
-                {generating ? 'Generating…' : 'Ready'}
-              </div>
-            </div>
-            <ChevronDown size={12} color="#475569" />
+        {/* Project name */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {plan?.business_name || 'New Project'}
           </div>
+          {plan && (
+            <div style={{ fontSize: 11, color: '#9ca3af', lineHeight: 1 }}>
+              {plan.business_type} · {plan.theme} theme
+            </div>
+          )}
         </div>
 
-        {/* Center — view/viewport controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div style={{ display: 'flex', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(99,102,241,0.12)', borderRadius: 8, padding: 3, gap: 2 }}>
-            {([{ value: 'preview', icon: Eye, label: 'Preview' }, { value: 'code', icon: Code2, label: 'Code' }] as const).map(v => (
-              <button key={v.value} onClick={() => setView(v.value)} style={{ background: view === v.value ? 'rgba(99,102,241,0.18)' : 'transparent', border: view === v.value ? '1px solid rgba(99,102,241,0.3)' : '1px solid transparent', borderRadius: 6, padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: view === v.value ? '#818cf8' : '#64748b', transition: 'all 0.15s' }}>
-                <v.icon size={12} />{v.label}
-              </button>
-            ))}
-          </div>
-
-          <div style={{ display: 'flex', gap: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 7, padding: 3 }}>
-            {([{ v: 'desktop', I: Monitor }, { v: 'tablet', I: Tablet }, { v: 'mobile', I: Smartphone }] as const).map(({ v, I }) => (
-              <button key={v} onClick={() => setViewport(v)} style={{ background: viewport === v ? 'rgba(99,102,241,0.15)' : 'transparent', border: `1px solid ${viewport === v ? 'rgba(99,102,241,0.3)' : 'transparent'}`, borderRadius: 5, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: viewport === v ? '#818cf8' : '#475569', transition: 'all 0.15s' }}>
-                <I size={12} />
-              </button>
-            ))}
-          </div>
+        {/* View toggle */}
+        <div style={{ display: 'flex', background: '#f3f4f6', borderRadius: 8, padding: 3, gap: 2 }}>
+          {([['preview', '▶ Preview'], ['code', '{ } Code']] as const).map(([v, label]) => (
+            <button
+              key={v}
+              onClick={() => setView(v)}
+              style={{ padding: '5px 13px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'inherit', background: view === v ? 'white' : 'transparent', color: view === v ? '#111827' : '#6b7280', boxShadow: view === v ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', transition: 'all 0.15s' }}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
-        {/* Right */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, justifyContent: 'flex-end' }}>
-          {/* Refresh preview */}
-          <button onClick={() => { const c = code; setCode(''); setTimeout(() => setCode(c), 50) }} title="Reload preview" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 7, width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b', transition: 'all 0.15s' }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#94a3b8' }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.color = '#64748b' }}
-          ><RotateCcw size={12} /></button>
-
-          {/* Share */}
-          <div style={{ position: 'relative' }}>
-            <button onClick={() => setShareMenu(!shareMenu)} style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 7, padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#818cf8', fontFamily: 'inherit', transition: 'all 0.15s' }}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.15)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'rgba(99,102,241,0.08)'}
-            ><Share2 size={12} />Share</button>
-            {shareMenu && (
-              <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 8, background: '#1a1a26', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 12, padding: 14, minWidth: 260, zIndex: 200, boxShadow: '0 20px 60px rgba(0,0,0,0.6)' }}>
-                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 8, fontWeight: 600 }}>Share preview link</div>
-                <div style={{ display: 'flex', gap: 6, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 8, padding: '7px 10px', marginBottom: 8 }}>
-                  <span style={{ fontSize: 11, color: '#94a3b8', flex: 1 }}>forge.app/preview/{projectId}</span>
-                  <button onClick={() => { navigator.clipboard.writeText(`forge.app/preview/${projectId}`); setShareMenu(false) }} style={{ background: 'rgba(99,102,241,0.15)', border: 'none', borderRadius: 4, padding: '2px 8px', fontSize: 11, color: '#818cf8', cursor: 'pointer', fontFamily: 'inherit' }}>Copy</button>
-                </div>
-                <button onClick={() => setShareMenu(false)} style={{ position: 'absolute', top: 10, right: 10, background: 'none', border: 'none', cursor: 'pointer' }}><X size={13} color="#475569" /></button>
-              </div>
-            )}
-          </div>
-
-          {/* Deploy */}
-          <button onClick={handleDeploy} disabled={deploying} style={{ background: deployed ? 'rgba(16,185,129,0.12)' : 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: deployed ? '1px solid rgba(16,185,129,0.3)' : 'none', borderRadius: 7, padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, cursor: deploying ? 'not-allowed' : 'pointer', color: deployed ? '#10b981' : 'white', fontFamily: 'inherit', transition: 'all 0.2s', opacity: deploying ? 0.7 : 1 }}>
-            {deploying ? <><Loader2 size={12} style={{ animation: 'spin .8s linear infinite' }} />Deploying…</> : deployed ? <><Check size={12} />Deployed!</> : <><Rocket size={12} />Deploy</>}
+        {/* Deploy */}
+        {deployed ? (
+          <a
+            href={deployUrl}
+            target="_blank"
+            rel="noreferrer"
+            style={{ fontSize: 12, color: '#7c3aed', textDecoration: 'none', background: '#f3f0ff', padding: '6px 12px', borderRadius: 6, border: '1px solid #ddd6fe', whiteSpace: 'nowrap', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}
+          >
+            ↗ {deployUrl.replace('https://', '')}
+          </a>
+        ) : (
+          <button
+            onClick={handleDeploy}
+            disabled={!code || isGenerating}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, background: code && !isGenerating ? 'linear-gradient(135deg, #7c3aed, #5b21b6)' : '#e5e7eb', color: code && !isGenerating ? 'white' : '#9ca3af', border: 'none', borderRadius: 8, padding: '7px 16px', cursor: code && !isGenerating ? 'pointer' : 'not-allowed', fontSize: 13, fontWeight: 600, fontFamily: 'inherit', transition: 'opacity 0.2s', whiteSpace: 'nowrap' }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+            Deploy
           </button>
-        </div>
+        )}
       </header>
 
-      {/* ── Main layout ── */}
-      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '340px 1fr', overflow: 'hidden' }}>
+      {/* ── Main layout ─────────────────────────────────────────────────────── */}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
-        {/* ── Chat panel ── */}
-        <div style={{ borderRight: '1px solid rgba(99,102,241,0.1)', display: 'flex', flexDirection: 'column', background: '#0c0c18', overflow: 'hidden' }}>
-
-          {/* Chat header */}
-          <div style={{ padding: '12px 14px', borderBottom: '1px solid rgba(99,102,241,0.08)', display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(8,8,16,0.6)', flexShrink: 0 }}>
-            <div style={{ width: 26, height: 26, borderRadius: 6, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Sparkles size={12} color="white" />
-            </div>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9' }}>Forge AI</div>
-              <div style={{ fontSize: 10, color: '#475569' }}>Full-stack UI builder</div>
-            </div>
-            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5 }}>
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: generating ? '#f59e0b' : '#10b981', transition: 'background 0.3s' }} />
-              <span style={{ fontSize: 10, color: generating ? '#f59e0b' : '#10b981', transition: 'color 0.3s' }}>{generating ? 'Working…' : 'Online'}</span>
-            </div>
-          </div>
+        {/* ── Left: Chat ─────────────────────────────────────────────────────── */}
+        <aside style={{ width: 360, background: 'white', borderRight: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'hidden' }}>
 
           {/* Messages */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '14px 12px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {messages.map((msg) => (
-              <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
-                {msg.role === 'assistant' && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 5 }}>
-                    <div style={{ width: 18, height: 18, borderRadius: 4, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Sparkles size={9} color="white" />
+          <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {messages.map(msg => {
+              if (msg.role === 'user') {
+                return (
+                  <div key={msg.id} style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
+                    <div style={{ maxWidth: '88%', background: '#7c3aed', color: 'white', borderRadius: '16px 16px 4px 16px', padding: '10px 14px', fontSize: 14, lineHeight: 1.55 }}>
+                      {msg.content}
                     </div>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: '#818cf8' }}>Forge</span>
-                    <span style={{ fontSize: 10, color: '#2d3748' }}>{msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                   </div>
-                )}
+                )
+              }
 
-                <div style={{ maxWidth: '90%', background: msg.role === 'user' ? 'linear-gradient(135deg, rgba(99,102,241,0.22), rgba(139,92,246,0.18))' : 'rgba(255,255,255,0.04)', border: `1px solid ${msg.role === 'user' ? 'rgba(99,102,241,0.35)' : 'rgba(255,255,255,0.07)'}`, borderRadius: msg.role === 'user' ? '14px 14px 4px 14px' : '4px 14px 14px 14px', padding: '9px 13px', fontSize: 13, lineHeight: 1.65, color: msg.role === 'user' ? '#c7d2fe' : '#94a3b8' }}>
-                  {msg.thinking ? (
-                    <div style={{ display: 'flex', gap: 5, alignItems: 'center', padding: '2px 0' }}>
-                      {[0, 0.2, 0.4].map((d, i) => (
-                        <div key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: '#6366f1', animation: `pulse ${1.2}s ${d}s ease-in-out infinite`, opacity: 0.7 }} />
-                      ))}
+              if (msg.role === 'plan' && msg.plan) {
+                return <PlanCard key={msg.id} plan={msg.plan} />
+              }
+
+              if (msg.role === 'assistant') {
+                const desc = getDescription(msg.content)
+                const hasCode = msg.content.includes('```')
+                return (
+                  <div key={msg.id} style={{ display: 'flex', gap: 9, alignItems: 'flex-start', marginBottom: 10 }}>
+                    <div style={{ width: 26, height: 26, borderRadius: 8, background: 'linear-gradient(135deg, #7c3aed, #a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, flexShrink: 0, marginTop: 2 }}>✦</div>
+                    <div style={{ flex: 1, background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 12, padding: '12px 14px' }}>
+                      {hasCode && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: desc ? 6 : 0 }}>
+                          <div style={{ width: 17, height: 17, borderRadius: '50%', background: '#d1fae5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#059669', flexShrink: 0 }}>✓</div>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: '#059669' }}>Generated successfully</span>
+                        </div>
+                      )}
+                      {desc && <p style={{ fontSize: 13, color: '#374151', lineHeight: 1.6, margin: 0 }}>{desc}</p>}
+                      {!desc && !hasCode && <p style={{ fontSize: 13, color: '#9ca3af', fontStyle: 'italic', margin: 0 }}>Writing...</p>}
                     </div>
-                  ) : (
-                    <span style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</span>
-                  )}
-                </div>
-
-                {/* Message actions for assistant messages */}
-                {msg.role === 'assistant' && !msg.thinking && (
-                  <div style={{ display: 'flex', gap: 3, marginTop: 5, opacity: 0.7 }}>
-                    <button title="Helpful" onClick={() => likeMessage(msg.id, true)} style={{ background: msg.liked === true ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.04)', border: `1px solid ${msg.liked === true ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.07)'}`, borderRadius: 5, width: 24, height: 24, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
-                      <ThumbsUp size={10} color={msg.liked === true ? '#10b981' : '#475569'} />
-                    </button>
-                    <button title="Not helpful" onClick={() => likeMessage(msg.id, false)} style={{ background: msg.liked === false ? 'rgba(239,68,68,0.1)' : 'rgba(255,255,255,0.04)', border: `1px solid ${msg.liked === false ? 'rgba(239,68,68,0.25)' : 'rgba(255,255,255,0.07)'}`, borderRadius: 5, width: 24, height: 24, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
-                      <ThumbsDown size={10} color={msg.liked === false ? '#ef4444' : '#475569'} />
-                    </button>
-                    <button title="Copy" onClick={() => copyMessage(msg.content)} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 5, width: 24, height: 24, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
-                      <Copy size={10} color="#475569" />
-                    </button>
-                    <button title="Regenerate" onClick={regenerateLast} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 5, width: 24, height: 24, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
-                      <RefreshCw size={10} color="#475569" />
-                    </button>
                   </div>
-                )}
+                )
+              }
 
-                {msg.role === 'user' && (
-                  <span style={{ fontSize: 10, color: '#2d3748', marginTop: 3 }}>{msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                )}
-              </div>
-            ))}
+              return null
+            })}
+
+            {isGenerating && <GeneratingIndicator stage={genStage} />}
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Context-aware suggestions */}
-          {!sending && messages.length < 4 && (
-            <div style={{ padding: '0 12px 10px', flexShrink: 0 }}>
-              <div style={{ fontSize: 10, color: '#374151', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Suggestions</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {getSuggestions().map(s => (
-                  <button key={s} onClick={() => { setInput(s); inputRef.current?.focus() }} style={{ background: 'rgba(99,102,241,0.05)', border: '1px solid rgba(99,102,241,0.1)', borderRadius: 7, padding: '7px 11px', fontSize: 12, color: '#64748b', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 7, transition: 'all 0.15s' }}
-                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(99,102,241,0.1)'; e.currentTarget.style.color = '#818cf8'; e.currentTarget.style.borderColor = 'rgba(99,102,241,0.25)' }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(99,102,241,0.05)'; e.currentTarget.style.color = '#64748b'; e.currentTarget.style.borderColor = 'rgba(99,102,241,0.1)' }}
+          {/* Quick actions */}
+          {!isGenerating && code && (
+            <div style={{ padding: '8px 16px 4px', borderTop: '1px solid #f3f4f6' }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#9ca3af', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Try</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                {QUICK_ACTIONS.slice(0, 4).map(action => (
+                  <button
+                    key={action}
+                    onClick={() => { setInput(action); inputRef.current?.focus() }}
+                    style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 20, padding: '4px 10px', fontSize: 11, color: '#6b7280', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#ede9fe'; e.currentTarget.style.color = '#7c3aed'; e.currentTarget.style.borderColor = '#c4b5fd' }}
+                    onMouseLeave={e => { e.currentTarget.style.background = '#f9fafb'; e.currentTarget.style.color = '#6b7280'; e.currentTarget.style.borderColor = '#e5e7eb' }}
                   >
-                    <ChevronRight size={10} color="#6366f1" />
-                    {s}
+                    {action}
                   </button>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Visual edits panel */}
-          {showVisualEdits && (
-            <VisualEditsPanel
-              onSelect={prompt => { setInput(prompt); setTimeout(() => sendMessage(prompt), 100) }}
-              onClose={() => setShowVisualEdits(false)}
-            />
-          )}
-
-          {/* Input area */}
-          <div style={{ padding: 10, borderTop: '1px solid rgba(99,102,241,0.08)', background: 'rgba(8,8,16,0.6)', flexShrink: 0 }}>
-            <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 10, padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {/* Input */}
+          <div style={{ padding: '12px 16px', borderTop: '1px solid #e5e7eb', flexShrink: 0 }}>
+            <div style={{ background: '#f9fafb', border: '1.5px solid #e5e7eb', borderRadius: 12, padding: '10px 12px', display: 'flex', gap: 8, transition: 'border-color 0.2s' }}>
               <textarea
                 ref={inputRef}
                 value={input}
                 onChange={e => setInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
-                placeholder="Describe a change or new feature…"
+                onKeyDown={handleKeyDown}
+                onFocus={e => (e.currentTarget.closest('div')!.style.borderColor = '#c4b5fd')}
+                onBlur={e => (e.currentTarget.closest('div')!.style.borderColor = '#e5e7eb')}
+                placeholder={isGenerating ? 'Generating…' : 'Describe a change or new feature…'}
+                disabled={isGenerating}
                 rows={2}
-                style={{ background: 'transparent', border: 'none', outline: 'none', color: '#f1f5f9', fontSize: 13, resize: 'none', fontFamily: 'inherit', lineHeight: 1.5 }}
+                style={{ flex: 1, background: 'none', border: 'none', outline: 'none', resize: 'none', fontSize: 13, color: '#374151', fontFamily: 'inherit', lineHeight: 1.55, opacity: isGenerating ? 0.5 : 1 }}
               />
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', gap: 4 }}>
-                  <button onClick={() => setShowVisualEdits(!showVisualEdits)} style={{ background: showVisualEdits ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.06)', border: `1px solid ${showVisualEdits ? 'rgba(99,102,241,0.3)' : 'rgba(99,102,241,0.12)'}`, borderRadius: 6, padding: '4px 9px', fontSize: 11, color: showVisualEdits ? '#818cf8' : '#64748b', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4, transition: 'all 0.15s' }}>
-                    <Wand2 size={10} />Visual edits
-                  </button>
-                </div>
-                <button onClick={() => sendMessage()} disabled={sending || !input.trim()} style={{ background: input.trim() && !sending ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : 'rgba(99,102,241,0.15)', border: 'none', borderRadius: 7, width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: input.trim() && !sending ? 'pointer' : 'not-allowed', transition: 'all 0.15s', flexShrink: 0 }}>
-                  {sending ? <Loader2 size={12} color="white" style={{ animation: 'spin .8s linear infinite' }} /> : <Send size={12} color="white" />}
-                </button>
-              </div>
+              <button
+                onClick={sendMessage}
+                disabled={!input.trim() || isGenerating}
+                style={{ alignSelf: 'flex-end', width: 32, height: 32, borderRadius: 8, background: input.trim() && !isGenerating ? '#7c3aed' : '#e5e7eb', border: 'none', cursor: input.trim() && !isGenerating ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'background 0.2s' }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={input.trim() && !isGenerating ? 'white' : '#9ca3af'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 19V5M5 12l7-7 7 7"/>
+                </svg>
+              </button>
             </div>
-            <div style={{ fontSize: 10, color: '#2d3748', marginTop: 5, textAlign: 'center' }}>Enter to send · Shift+Enter for new line</div>
+            <div style={{ fontSize: 11, color: '#9ca3af', textAlign: 'center', marginTop: 6 }}>Enter to send · Shift+Enter for new line</div>
           </div>
-        </div>
+        </aside>
 
-        {/* ── Preview / Code panel ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', background: view === 'code' ? '#0d0d14' : '#13131f' }}>
+        {/* ── Right: Preview / Code ───────────────────────────────────────────── */}
+        <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-          {/* Preview toolbar */}
+          {/* Viewport controls */}
           {view === 'preview' && (
-            <div style={{ height: 40, background: 'rgba(8,8,16,0.9)', borderBottom: '1px solid rgba(99,102,241,0.08)', display: 'flex', alignItems: 'center', padding: '0 14px', gap: 10, flexShrink: 0 }}>
-              <div style={{ display: 'flex', gap: 5 }}>
-                {['#ff5f57', '#ffbd2e', '#28c840'].map((c, i) => <div key={i} style={{ width: 10, height: 10, borderRadius: '50%', background: c }} />)}
-              </div>
-              <div style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 5, padding: '4px 12px', fontSize: 11, color: '#475569', maxWidth: 380, margin: '0 auto', textAlign: 'center' }}>
-                forge.app/preview/{projectId}
-              </div>
-              <div style={{ display: 'flex', gap: 4 }}>
-                <button onClick={() => { const c = code; setCode(''); setTimeout(() => setCode(c), 50) }} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 5, width: 26, height: 26, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Reload">
-                  <RotateCcw size={10} color="#475569" />
+            <div style={{ height: 44, background: 'white', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 6, flexShrink: 0 }}>
+              {([
+                { label: 'Desktop', icon: '🖥', size: 1024 },
+                { label: 'Tablet', icon: '▭', size: 768 },
+                { label: 'Mobile', icon: '│', size: 390 },
+              ] as const).map(({ label, icon, size }) => (
+                <button
+                  key={size}
+                  onClick={() => setViewport(size)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', border: `1.5px solid ${viewport === size ? '#c4b5fd' : '#e5e7eb'}`, borderRadius: 7, cursor: 'pointer', fontSize: 12, fontFamily: 'inherit', background: viewport === size ? '#f3f0ff' : 'white', color: viewport === size ? '#7c3aed' : '#6b7280', fontWeight: viewport === size ? 600 : 400, transition: 'all 0.15s' }}
+                >
+                  {icon} {label}
                 </button>
-                <button style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 5, width: 26, height: 26, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Fullscreen">
-                  <Maximize2 size={10} color="#475569" />
+              ))}
+
+              {code && (
+                <button
+                  onClick={() => { window.open(`data:text/html,${encodeURIComponent(document.querySelector('iframe')?.srcdoc || '')}`) }}
+                  style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', border: '1px solid #e5e7eb', borderRadius: 7, cursor: 'pointer', fontSize: 12, fontFamily: 'inherit', background: 'white', color: '#6b7280', transition: 'all 0.15s' }}
+                  onMouseEnter={e => { e.currentTarget.style.color = '#111827'; e.currentTarget.style.borderColor = '#d1d5db' }}
+                  onMouseLeave={e => { e.currentTarget.style.color = '#6b7280'; e.currentTarget.style.borderColor = '#e5e7eb' }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                  Open
                 </button>
-              </div>
+              )}
             </div>
           )}
 
           {/* Content */}
-          <div style={{ flex: 1, overflow: generating && !code ? 'hidden' : 'auto', display: 'flex', justifyContent: view === 'preview' ? 'center' : 'stretch', alignItems: view === 'preview' && viewport !== 'desktop' ? 'flex-start' : 'stretch', background: view === 'preview' ? '#13131f' : '#0d0d14' }}>
-            {view === 'preview' ? (
-              <div style={{ width: viewportWidth, maxWidth: '100%', height: '100%', transition: 'width 0.3s ease', boxShadow: viewport !== 'desktop' ? '0 0 80px rgba(0,0,0,0.6)' : 'none', flexShrink: 0 }}>
-                <LivePreview code={code} isGenerating={generating} />
-              </div>
-            ) : (
-              <div style={{ width: '100%', height: '100%' }}>
-                <CodePanel code={code} />
-              </div>
-            )}
+          <div style={{ flex: 1, overflow: 'hidden' }}>
+            {view === 'preview'
+              ? <LivePreview code={code} viewport={viewport} />
+              : <CodePanel code={code} />
+            }
           </div>
 
           {/* Status bar */}
-          <div style={{ height: 28, background: 'rgba(8,8,16,0.9)', borderTop: '1px solid rgba(99,102,241,0.07)', display: 'flex', alignItems: 'center', padding: '0 14px', gap: 16, fontSize: 10, color: '#2d3748', flexShrink: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-              <div style={{ width: 4, height: 4, borderRadius: '50%', background: '#10b981' }} />
-              <span>Live</span>
+          <div style={{ height: 24, background: '#5b21b6', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 14px', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 11, color: 'rgba(255,255,255,0.65)' }}>
+              <span>⚡ React 18 · Tailwind · TypeScript</span>
+              {plan && <span>· {plan.business_type}</span>}
             </div>
-            <span>React 18 · TypeScript · Tailwind CSS</span>
-            {code && <span style={{ color: '#374151' }}>{code.split('\n').length} lines</span>}
-            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 3 }}>
-              <Sparkles size={8} color="#6366f1" />
-              <span style={{ color: '#6366f1' }}>Forge AI</span>
-            </div>
+            {code && <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)' }}>{code.split('\n').length} lines</span>}
           </div>
-        </div>
+        </main>
       </div>
 
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg) } }
-        @keyframes pulse { 0%,100% { opacity: .3; transform: scale(.9) } 50% { opacity: 1; transform: scale(1.1) } }
-      `}</style>
+      {/* Spin animation */}
+      <style>{`@keyframes forge-spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   )
 }
