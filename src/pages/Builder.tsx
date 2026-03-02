@@ -98,118 +98,56 @@ export default function App() {
 }`
 }
 
-// ----- Preview component -----
-function AppPreview({ prompt }: { prompt: string }) {
-  const appName = prompt.split(' ').slice(0, 4).join(' ') || 'My App'
-  const [todos, setTodos] = useState([
-    { id: 1, text: 'Review designs', done: true },
-    { id: 2, text: 'Build MVP', done: false },
-    { id: 3, text: 'Write tests', done: false },
-  ])
-  const [input, setInput] = useState('')
+// ----- Live Preview component (renders AI-generated code in an iframe) -----
+function LivePreview({ code }: { code: string }) {
+  const iframeRef = useRef<HTMLIFrameElement>(null)
 
-  const addTodo = () => {
-    if (!input.trim()) return
-    setTodos(t => [...t, { id: Date.now(), text: input, done: false }])
-    setInput('')
-  }
+  useEffect(() => {
+    // Strip imports and export default so the code runs in the global iframe scope
+    const processedCode = code
+      .replace(/^import\s+.*$/gm, '')
+      .replace(/export\s+default\s+function\s+App/g, 'function App')
+      .replace(/export\s+default\s+/g, '')
 
-  const toggleTodo = (id: number) => {
-    setTodos(t => t.map(todo => todo.id === id ? { ...todo, done: !todo.done } : todo))
-  }
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Inter, system-ui, -apple-system, sans-serif; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel" data-presets="react,typescript">
+const { useState, useEffect, useRef, useCallback, useMemo, useReducer } = React;
+${processedCode}
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+  </script>
+</body>
+</html>`
+
+    const blob = new Blob([html], { type: 'text/html' })
+    const url = URL.createObjectURL(blob)
+    if (iframeRef.current) {
+      iframeRef.current.src = url
+    }
+    return () => URL.revokeObjectURL(url)
+  }, [code])
 
   return (
-    <div style={{
-      minHeight: '100%', background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: 24, fontFamily: 'Inter, sans-serif',
-    }}>
-      <div style={{
-        width: '100%', maxWidth: 420,
-        background: 'rgba(255,255,255,0.05)',
-        backdropFilter: 'blur(20px)',
-        border: '1px solid rgba(255,255,255,0.1)',
-        borderRadius: 20, padding: 28,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: 10,
-            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <Sparkles size={16} color="white" />
-          </div>
-          <h1 style={{ fontSize: 20, fontWeight: 800, color: 'white', margin: 0, letterSpacing: '-0.02em' }}>{appName}</h1>
-        </div>
-
-        <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-          <input
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && addTodo()}
-            placeholder="Add a new item..."
-            style={{
-              flex: 1, background: 'rgba(255,255,255,0.08)',
-              border: '1px solid rgba(255,255,255,0.1)',
-              borderRadius: 10, padding: '10px 14px',
-              color: 'white', fontSize: 13, outline: 'none',
-              fontFamily: 'inherit',
-            }}
-          />
-          <button onClick={addTodo} style={{
-            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-            border: 'none', color: 'white',
-            padding: '10px 18px', borderRadius: 10,
-            fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-          }}>Add</button>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {todos.map(todo => (
-            <div key={todo.id} onClick={() => toggleTodo(todo.id)} style={{
-              display: 'flex', alignItems: 'center', gap: 12,
-              padding: '12px 14px', borderRadius: 12,
-              background: 'rgba(255,255,255,0.04)',
-              border: '1px solid rgba(255,255,255,0.06)',
-              cursor: 'pointer', transition: 'all 0.15s',
-            }}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
-            >
-              <div style={{
-                width: 20, height: 20, borderRadius: '50%',
-                border: `2px solid ${todo.done ? '#6366f1' : 'rgba(255,255,255,0.25)'}`,
-                background: todo.done ? '#6366f1' : 'transparent',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                transition: 'all 0.15s', flexShrink: 0,
-              }}>
-                {todo.done && <Check size={11} color="white" strokeWidth={3} />}
-              </div>
-              <span style={{
-                fontSize: 13, color: todo.done ? 'rgba(255,255,255,0.35)' : 'white',
-                textDecoration: todo.done ? 'line-through' : 'none',
-                transition: 'all 0.15s',
-              }}>{todo.text}</span>
-            </div>
-          ))}
-        </div>
-
-        <div style={{
-          marginTop: 20, paddingTop: 16,
-          borderTop: '1px solid rgba(255,255,255,0.08)',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          fontSize: 12, color: 'rgba(255,255,255,0.35)',
-        }}>
-          <span>{todos.filter(t => t.done).length} of {todos.length} completed</span>
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 4,
-            fontSize: 11, color: '#6366f1',
-          }}>
-            <Sparkles size={10} /> Powered by Forge
-          </div>
-        </div>
-      </div>
-    </div>
+    <iframe
+      ref={iframeRef}
+      style={{ width: '100%', height: '100%', border: 'none', background: '#0f172a' }}
+      sandbox="allow-scripts"
+      title="App Preview"
+    />
   )
 }
 
@@ -307,12 +245,7 @@ export default function Builder() {
   const [view, setView] = useState<'preview' | 'code'>('preview')
   const [viewport, setViewport] = useState<'desktop' | 'tablet' | 'mobile'>('desktop')
   const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '0',
-      role: 'assistant',
-      content: `I've built your app based on your description: "${initialPrompt}"\n\nThe app is live in the preview. You can:\n• Ask me to change colors, layout, or functionality\n• Add new features or sections\n• Modify any part of the UI\n\nWhat would you like to adjust?`,
-      timestamp: new Date(),
-    },
+    { id: 'init', role: 'assistant', content: '', timestamp: new Date(), thinking: true },
   ])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
@@ -328,6 +261,28 @@ export default function Builder() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  // Auto-generate the app on first load
+  const didInitRef = useRef(false)
+  useEffect(() => {
+    if (didInitRef.current) return
+    didInitRef.current = true
+    setGenerating(true)
+    callAI([{ role: 'user', content: initialPrompt }], initialPrompt)
+      .then(aiText => {
+        const codeMatch = aiText.match(/```(?:tsx?|jsx?)\n([\s\S]*?)```/)
+        if (codeMatch) setCode(codeMatch[1].trim())
+        const displayText = aiText
+          .replace(/```(?:tsx?|jsx?)\n[\s\S]*?```/g, '')
+          .trim() || "Your app is ready! Ask me to make any changes."
+        setMessages([{ id: 'init', role: 'assistant', content: displayText, timestamp: new Date() }])
+      })
+      .catch(() => {
+        setMessages([{ id: 'init', role: 'assistant', content: `Ready to help with "${initialPrompt}"! Ask me to build or modify anything.`, timestamp: new Date() }])
+      })
+      .finally(() => setGenerating(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const sendMessage = async () => {
     if (!input.trim() || sending) return
@@ -782,7 +737,7 @@ export default function Builder() {
                 minHeight: '100%', transition: 'width 0.3s ease',
                 boxShadow: viewport !== 'desktop' ? '0 0 60px rgba(0,0,0,0.5)' : 'none',
               }}>
-                <AppPreview prompt={initialPrompt} />
+                <LivePreview code={code} />
               </div>
             ) : (
               <div style={{ width: '100%', height: '100%' }}>
