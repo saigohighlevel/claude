@@ -32,82 +32,88 @@ Every landing page MUST include ALL of these sections:
 7. **FOOTER** — Multi-column layout with logo/description, quick links, contact info, social links (SVG icons), newsletter input, copyright
 
 ## IMAGES — MANDATORY
-ALWAYS use real Unsplash photos throughout the page. Never use placeholder text for images.
+ALWAYS embed real photos throughout every page. Never use colored placeholder divs or skip images.
 
-URL format: https://images.unsplash.com/photo-{ID}?auto=format&fit=crop&w={width}&q=80
+### PRIMARY: LoremFlickr (keyword-based, always relevant, no API key)
+Format: \`https://loremflickr.com/{width}/{height}/{keyword}?lock={number}\`
 
-### PHOTO LIBRARY — pick the most relevant IDs:
+- The \`keyword\` should match the business context (see examples below)
+- The \`lock\` number makes it deterministic — use different numbers for different images on the same page
+- Use descriptive keywords for best results
 
-**Hair Salons & Beauty:**
+**Keyword examples by business type:**
+- Hair salon/barber: \`salon\`, \`hairdresser\`, \`haircut\`, \`barber\`, \`beauty\`
+- Restaurant/café: \`restaurant\`, \`food\`, \`chef\`, \`coffee\`, \`dining\`
+- Gym/fitness: \`gym\`, \`fitness\`, \`workout\`, \`yoga\`, \`running\`
+- Spa/wellness: \`spa\`, \`massage\`, \`wellness\`, \`relaxation\`
+- Tech/SaaS: \`office\`, \`technology\`, \`coding\`, \`team\`, \`startup\`
+- Real estate: \`house\`, \`interior\`, \`architecture\`, \`apartment\`
+- Medical: \`doctor\`, \`medical\`, \`clinic\`, \`health\`
+- For people/team/testimonial avatars: \`person\`, \`woman\`, \`man\`, \`portrait\`
+
+**Usage examples:**
+\`\`\`
+Hero background: https://loremflickr.com/1920/1080/salon?lock=1
+Service image 1: https://loremflickr.com/600/400/haircut?lock=2
+Service image 2: https://loremflickr.com/600/400/hairdresser?lock=3
+Team photo:      https://loremflickr.com/300/300/woman,portrait?lock=4
+Testimonial 1:   https://loremflickr.com/100/100/woman?lock=5
+Testimonial 2:   https://loremflickr.com/100/100/man?lock=6
+About section:   https://loremflickr.com/800/600/salon,interior?lock=7
+\`\`\`
+
+### FALLBACK: Unsplash direct (when you know a specific photo ID works)
+Format: \`https://images.unsplash.com/photo-{ID}?auto=format&fit=crop&w={width}&q=80\`
+
+Known reliable IDs:
 - Salon interior: 1560066984-138dadb4c035
-- Stylist working: 1522337360788-8b13dee7a37e
-- Hair coloring: 1582095133179-bfd08e2fbee6
-- Scissors/tools: 1562322140-8baeececf3df
-- Woman styled hair: 1487412947147-5cebf100ffc2
-- Blowout styling: 1595476108010-b4d1f102b1b1
-- Barbershop: 1503951914875-452162b0f3f1
-- Hair wash: 1519699047748-de8e457a634e
+- Restaurant: 1517248135467-4c7edcad34c4
+- Gym: 1534438327276-14e5300c3a48
+- Office/tech: 1497366216548-37526070297c
+- Abstract hero: 1557804483-ef3f8fbf14e4
 
-**Restaurants & Food:**
-- Restaurant interior: 1517248135467-4c7edcad34c4
-- Fine dining: 1414235077428-338989a2e8c0
-- Food plating: 1504674900247-0877df9cc836
-- Chef cooking: 1565299624946-b28f40a0ae38
-- Coffee shop: 1482049016688-2d3e1b311543
-- Bakery: 1509440159596-0249088772ff
-- Bar drinks: 1551024709-8f23befc8f43
+For **hero section backgrounds**, always use a full-cover image with a dark overlay:
+\`<div style={{ backgroundImage: 'linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.4)), url(https://loremflickr.com/1920/1080/{keyword}?lock=1)', backgroundSize: 'cover', backgroundPosition: 'center' }}>\`
 
-**Fitness & Gym:**
-- Gym floor: 1534438327276-14e5300c3a48
-- Personal training: 1571019614242-c5c5dee81f9a
-- Weight lifting: 1583454110551-21f2fa2afe61
-- Yoga: 1544367567-0f2fcb009e0b
-- Running: 1476480862126-209bfaa8edc8
-- Boxing: 1517438476312-10d79c077509
+For **service/feature cards**: 600×400, different lock numbers
+For **team/testimonial avatars**: 120×120, keyword \`person\` or \`portrait\`
+For **about section split image**: 800×600
 
-**Tech & SaaS:**
-- Team working: 1522202176988-66273c2fd55f
-- Laptop work: 1454165804606-c3d57bc86b40
-- Office: 1497366216548-37526070297c
-- Dashboard: 1551434678-e076c223a692
-- Coding: 1504384308090-c894fdcc538d
-- Meeting: 1556761175-b413da4baf72
+## COLOR SYSTEM — CSS DESIGN TOKENS (Critical for quality)
+Define a complete design system using CSS custom properties at the top of your component via a \`<style>\` tag or inline in a \`useEffect\`. Every color in the UI must reference these tokens — never hardcode random hex values.
 
-**Medical & Wellness:**
-- Doctor consult: 1576091160550-2173dba999ef
-- Clinic: 1559757175-5700dde675bc
-- Therapy: 1584820927498-cfe5211fd8bf
-- Medical team: 1612349317150-e413f6a5b16d
-- Wellness spa: 1540555700478-4be290a9f948
+**Pattern to include in EVERY component:**
+\`\`\`tsx
+// At the top of your App component, inject CSS variables:
+useEffect(() => {
+  const style = document.createElement('style');
+  style.textContent = \`:root {
+    --color-primary: /* main brand color HSL */;
+    --color-primary-foreground: /* text on primary */;
+    --color-secondary: /* secondary accent */;
+    --color-background: /* main background */;
+    --color-surface: /* card/surface color */;
+    --color-border: /* border color */;
+    --color-text: /* main text */;
+    --color-text-muted: /* secondary text */;
+    --radius: 0.5rem;
+  }\`;
+  document.head.appendChild(style);
+  return () => document.head.removeChild(style);
+}, []);
+\`\`\`
 
-**Real Estate:**
-- Modern home: 1560518883-ce09059eeffa
-- Luxury interior: 1570129477492-45c003edd2be
-- House exterior: 1486325212027-8081e485255e
-- Kitchen: 1556909114-f6e7ad7d3136
-- Pool/backyard: 1582407947304-fd86f28320c9
+Then use Tailwind CSS classes that reference these, OR use inline style={{ color: 'var(--color-primary)' }} consistently.
 
-**General / Hero backgrounds:**
-- Abstract gradient: 1557804483-ef3f8fbf14e4
-- City night: 1477959858617-67f85cf4f1df
-- Mountains: 1506905925346-21bda4d32df4
-- Architecture: 1486325212027-8081e485255e
-- Abstract dark: 1618005182384-a83a8bd57fbe
+**Pre-defined palettes by business type:**
+- **Hair/Beauty**: primary #c084fc (rose-purple), bg #fdf4ff (lavender tint), surface #fff, accent #f59e0b (gold)
+- **Restaurants**: primary #dc2626 (deep red), bg #1c0a0a (near black), surface #2d1212, accent #f59e0b (gold)
+- **Fitness/Gym**: primary #3b82f6 (electric blue), bg #0a0f1e (dark navy), surface #111827, accent #f97316 (orange)
+- **Tech/SaaS**: primary #6366f1 (indigo), bg #0f0f1a (dark), surface #16161f, accent #06b6d4 (cyan)
+- **Medical/Spa**: primary #0891b2 (teal), bg #f0fdfe (light), surface #fff, accent #2dd4bf
+- **Real Estate**: primary #1e293b (slate), bg #f8fafc, surface #fff, accent #ca8a04 (gold)
 
-For **hero section backgrounds**, use the image as a full cover with a dark overlay:
-\`style={{ backgroundImage: 'linear-gradient(to bottom, rgba(0,0,0,0.6), rgba(0,0,0,0.4)), url(https://images.unsplash.com/photo-{ID}?auto=format&fit=crop&w=1920&q=90)', backgroundSize: 'cover', backgroundPosition: 'center' }}\`
-
-For **service/team cards**, use images with w=600 or w=400.
-For **testimonial avatars**, use w=100&h=100 with a person photo.
-For **gallery**, use w=800.
-
-## COLOR SCHEMES — match the business
-- **Hair/Beauty salons**: warm rose + gold (#f43f5e, #eab308, #fdf2f8 light, #4a1942 dark)
-- **Restaurants**: deep burgundy + amber (#7f1d1d, #d97706, warm cream #fef3c7)
-- **Fitness/Gym**: electric blue + orange (#1d4ed8, #ea580c, #0f172a dark)
-- **Tech/SaaS**: indigo + violet (#6366f1, #8b5cf6, #0f172a dark)
-- **Medical/Spa**: teal + sky blue (#0d9488, #0284c7, clean white)
-- **Real Estate**: slate + gold (#1e293b, #ca8a04, off-white)
+Use these for light OR dark themes — pick what suits the brand best.
 
 ## TYPOGRAPHY
 - Headlines: very large, bold, tight letter-spacing (-0.04em), often gradient colored
@@ -130,8 +136,24 @@ Generate REAL, SPECIFIC content — not placeholders:
 - Actual address format, phone format, email format
 - Business hours
 
-## QUALITY BAR
-The website must look like it costs $10,000+ to build. If you were a customer landing on this page, you'd immediately trust the business and want to book or buy. NEVER generate a minimal or sparse design — always go full, rich, and detailed.`
+## SPACING & TYPOGRAPHY — enforce these defaults
+- Section padding: \`padding: '96px 24px'\` (py-24 equivalent), never less than 64px
+- Container: \`maxWidth: 1200px, margin: '0 auto'\`
+- Card padding: minimum 32px
+- Headlines: \`fontSize: 'clamp(2.5rem, 5vw, 4rem)', fontWeight: 800, letterSpacing: '-0.04em', lineHeight: 1.1\`
+- Body text: \`fontSize: 16px, lineHeight: 1.7, color: var(--color-text-muted)\`
+- Subheadings: \`fontSize: 'clamp(1.5rem, 3vw, 2.25rem)', fontWeight: 700\`
+
+## QUALITY BAR — Design references to match
+Your output must look like it was designed with the same quality as **Stripe**, **Linear**, or **Framer** landing pages. Specifically:
+- Generous whitespace — sections breathe
+- Consistent visual hierarchy — clear H1 > H2 > body size steps
+- Depth through layering — shadows, subtle borders, glass effects
+- Every interactive element has hover + focus states
+- Images are never skipped — every section that benefits from an image has one
+- The hero would make someone immediately want to book/buy/sign up
+
+NEVER generate a sparse, minimal, or incomplete page. Always go full, rich, and production-ready.`
 
 app.post('/api/chat', async (req, res) => {
   const { messages, context } = req.body
