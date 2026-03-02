@@ -8,20 +8,16 @@ import {
   Maximize2, Clock
 } from 'lucide-react'
 
-// ----- Simulated AI responses -----
-const AI_RESPONSES: Record<string, string[]> = {
-  default: [
-    "I've updated the component as requested! The changes look great — check the preview on the right.",
-    "Done! I've made that modification. The layout is looking clean and modern.",
-    "Great idea! I've implemented that feature. Let me know if you'd like any tweaks.",
-    "I've updated the styles and added the new functionality you described. Looking good!",
-    "That's been applied! I adjusted the spacing, colors, and interactions as you requested.",
-  ],
-}
-
-function getAIResponse() {
-  const responses = AI_RESPONSES.default
-  return responses[Math.floor(Math.random() * responses.length)]
+// ----- Real AI chat call -----
+async function callAI(messages: { role: string; content: string }[], context: string) {
+  const response = await fetch('/api/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messages, context }),
+  })
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.error || 'AI request failed')
+  return data.content as string
 }
 
 // ----- Simulated generated code -----
@@ -321,7 +317,7 @@ export default function Builder() {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [generating, setGenerating] = useState(false)
-  const [code] = useState(() => generateCode(initialPrompt))
+  const [code, setCode] = useState(() => generateCode(initialPrompt))
   const [deployed, setDeployed] = useState(false)
   const [deploying, setDeploying] = useState(false)
   const [shareMenu, setShareMenu] = useState(false)
@@ -338,16 +334,41 @@ export default function Builder() {
     const userMsg: Message = { id: Date.now().toString(), role: 'user', content: input, timestamp: new Date() }
     const thinkingMsg: Message = { id: (Date.now() + 1).toString(), role: 'assistant', content: '', timestamp: new Date(), thinking: true }
     setMessages(m => [...m, userMsg, thinkingMsg])
+    const userInput = input
     setInput('')
     setSending(true)
     setGenerating(true)
 
-    await new Promise(r => setTimeout(r, 1200 + Math.random() * 800))
+    try {
+      // Build conversation history (exclude thinking placeholders)
+      const history = messages
+        .filter(m => !m.thinking)
+        .map(m => ({ role: m.role, content: m.content }))
+      history.push({ role: 'user', content: userInput })
 
-    const aiResponse = getAIResponse()
-    setMessages(m => m.map(msg =>
-      msg.thinking ? { ...msg, content: aiResponse, thinking: false } : msg
-    ))
+      const aiText = await callAI(history, initialPrompt)
+
+      // Extract code block if Claude returned one
+      const codeMatch = aiText.match(/```(?:tsx?|jsx?)\n([\s\S]*?)```/)
+      if (codeMatch) {
+        setCode(codeMatch[1].trim())
+      }
+
+      // Strip code block from chat message
+      const displayText = aiText
+        .replace(/```(?:tsx?|jsx?)\n[\s\S]*?```/g, '')
+        .trim() || 'Done! Switch to the Code tab to see the updated component.'
+
+      setMessages(m => m.map(msg =>
+        msg.thinking ? { ...msg, content: displayText, thinking: false } : msg
+      ))
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Something went wrong. Check your API key in the .env file.'
+      setMessages(m => m.map(msg =>
+        msg.thinking ? { ...msg, content: `⚠️ ${errorMsg}`, thinking: false } : msg
+      ))
+    }
+
     setSending(false)
     setGenerating(false)
   }
