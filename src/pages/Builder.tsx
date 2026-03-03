@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -47,46 +47,69 @@ p{color:#6b7280;font-size:14px;font-weight:500}
 
 function LivePreview({ code, viewport }: { code: string; viewport: number }) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
-
-  const setIframeSrc = useCallback((html: string) => {
-    const blob = new Blob([html], { type: 'text/html' })
-    const url = URL.createObjectURL(blob)
-    if (iframeRef.current) iframeRef.current.src = url
-    return () => URL.revokeObjectURL(url)
-  }, [])
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   useEffect(() => {
-    if (!code) return setIframeSrc(LOADING_HTML)
+    if (!iframeRef.current) return
 
-    const processed = code
-      .replace(/^import\s+.*$/gm, '')
-      .replace(/export\s+default\s+function\s+App/g, 'function App')
-      .replace(/export\s+default\s+/g, '')
+    if (!code) {
+      iframeRef.current.srcdoc = LOADING_HTML
+      return
+    }
 
-    const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
-  <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Inter',system-ui,sans-serif}html{scroll-behavior:smooth}</style>
-</head>
-<body>
-  <div id="root"></div>
-  <script type="text/babel" data-presets="react,typescript">
-const { useState, useEffect, useRef, useCallback, useMemo } = React;
-${processed}
-ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
-  </script>
-</body>
-</html>`
-    return setIframeSrc(html)
-  }, [code, setIframeSrc])
+    // Debounce to avoid constant reloads during streaming
+    clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      if (!iframeRef.current) return
+
+      // Strip imports/exports for browser execution
+      const processed = code
+        .replace(/^import\s+.*$/gm, '')
+        .replace(/^export\s+default\s+function/gm, 'function')
+        .replace(/^export\s+default\s+/gm, '')
+        .replace(/^export\s+(?=const |let |var |function |class |interface |type )/gm, '')
+        .replace(/^export\s*\{[^}]*\}\s*;?\s*$/gm, '')
+
+      // Build the code string: hooks + component + render
+      const fullCode = [
+        'const { useState, useEffect, useRef, useCallback, useMemo } = React;',
+        processed,
+        'try {',
+        '  ReactDOM.createRoot(document.getElementById("root")).render(',
+        '    React.createElement(typeof App !== "undefined" ? App : function(){return React.createElement("div",{style:{padding:"40px",fontFamily:"Inter,sans-serif",color:"#6b7280"}},"No App component found");})',
+        '  );',
+        '} catch(e) { showError(e.message + "\\n" + (e.stack||"")); }',
+      ].join('\n')
+
+      // URL-encode so it can be safely embedded inside a JS string in HTML
+      const encoded = encodeURIComponent(fullCode)
+
+      const sc = '<' + '/script>'
+      iframeRef.current.srcdoc = [
+        '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>',
+        '<meta name="viewport" content="width=device-width,initial-scale=1.0"/>',
+        '<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js">' + sc,
+        '<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js">' + sc,
+        '<script src="https://unpkg.com/@babel/standalone@7/babel.min.js">' + sc,
+        '<script src="https://cdn.tailwindcss.com">' + sc,
+        '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>',
+        '<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:"Inter",system-ui,sans-serif}html{scroll-behavior:smooth}img{max-width:100%;height:auto}</style>',
+        '</head><body><div id="root"></div><script>',
+        'function showError(m){document.getElementById("root").innerHTML="<div style=\\"padding:32px;font-family:Inter,sans-serif\\"><div style=\\"background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:20px\\"><h3 style=\\"color:#dc2626;margin:0 0 8px;font-size:14px;font-weight:600\\">Preview Error</h3><pre style=\\"color:#991b1b;white-space:pre-wrap;font-size:12px;margin:0;font-family:monospace;line-height:1.5\\">"+m+"</pre></div></div>";}',
+        'window.onerror=function(m){showError(String(m));return true;};',
+        'try{',
+        'var __code=decodeURIComponent("' + encoded + '");',
+        'var __presets=[["react",{runtime:"classic"}]];',
+        'if(Babel.availablePresets&&Babel.availablePresets.typescript)__presets.push("typescript");',
+        'var __r=Babel.transform(__code,{presets:__presets,filename:"App.tsx"});',
+        '(0,eval)(__r.code);',
+        '}catch(e){showError(e.message);}',
+        sc + '</body></html>',
+      ].join('\n')
+    }, 400)
+
+    return () => clearTimeout(debounceRef.current)
+  }, [code])
 
   const isNarrowed = viewport < 1024
 
@@ -103,7 +126,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(
       <iframe
         ref={iframeRef}
         title="Preview"
-        sandbox="allow-scripts"
+        sandbox="allow-scripts allow-same-origin"
         style={{
           width: isNarrowed ? `${viewport}px` : '100%',
           height: isNarrowed ? 'auto' : '100%',
@@ -247,7 +270,11 @@ export default function Builder() {
 
   const [view, setView] = useState<'preview' | 'code'>('preview')
   const [viewport, setViewport] = useState(1024)
-  const [messages, setMessages] = useState<Message[]>([])
+  const [messages, setMessages] = useState<Message[]>(() => {
+    const p = sessionStorage.getItem('buildPrompt')
+      || 'Build a website for a premium hair salon called "Luxe & Flow" in Miami Beach — specializing in cuts, color, and bridal styling'
+    return [{ id: Date.now(), role: 'user', content: p }]
+  })
   const [code, setCode] = useState('')
   const [plan, setPlan] = useState<Plan | null>(null)
   const [photos, setPhotos] = useState<Record<string, string> | null>(null)
@@ -277,17 +304,6 @@ export default function Builder() {
     const prev = document.body.style.background
     document.body.style.background = '#f9fafb'
     return () => { document.body.style.background = prev }
-  }, [])
-
-  // Auto-generate on first load
-  useEffect(() => {
-    if (hasAutoGenerated.current) return
-    hasAutoGenerated.current = true
-    const prompt = sessionStorage.getItem('buildPrompt')
-      || 'Build a website for a premium hair salon called "Luxe & Flow" in Miami Beach — specializing in cuts, color, and bridal styling'
-    sessionStorage.removeItem('buildPrompt')
-    setMessages([{ id: Date.now(), role: 'user', content: prompt }])
-    generate(prompt, null, null, [])
   }, [])
 
   const generate = async (
@@ -366,8 +382,8 @@ export default function Builder() {
             if (j.content) {
               accumulated += j.content
               setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, content: accumulated } : m))
-              // Extract code and update preview in real-time
-              const match = accumulated.match(/```(?:tsx?|jsx?)?\n([\s\S]+?)(?:```|$)/)
+              // Extract code — match any language identifier (tsx, typescript, jsx, etc.)
+              const match = accumulated.match(/```\w*\n([\s\S]+?)(?:```|$)/)
               if (match) setCode(match[1])
             }
           } catch { /* ignore */ }
@@ -379,6 +395,16 @@ export default function Builder() {
 
     setIsGenerating(false)
   }
+
+  // Auto-generate on first load
+  useEffect(() => {
+    if (hasAutoGenerated.current) return
+    hasAutoGenerated.current = true
+    sessionStorage.removeItem('buildPrompt')
+    const prompt = messages[0]?.content || ''
+    if (prompt) generate(prompt, null, null, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const sendMessage = () => {
     const msg = input.trim()
@@ -579,16 +605,16 @@ export default function Builder() {
           {view === 'preview' && (
             <div style={{ height: 44, background: 'white', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 6, flexShrink: 0 }}>
               {([
-                { label: 'Desktop', icon: '🖥', size: 1024 },
-                { label: 'Tablet', icon: '▭', size: 768 },
-                { label: 'Mobile', icon: '│', size: 390 },
-              ] as const).map(({ label, icon, size }) => (
+                { label: 'Desktop', w: '100%', size: 1024 },
+                { label: 'Tablet', w: '768px', size: 768 },
+                { label: 'Mobile', w: '390px', size: 390 },
+              ] as const).map(({ label, size }) => (
                 <button
                   key={size}
                   onClick={() => setViewport(size)}
                   style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', border: `1.5px solid ${viewport === size ? '#c4b5fd' : '#e5e7eb'}`, borderRadius: 7, cursor: 'pointer', fontSize: 12, fontFamily: 'inherit', background: viewport === size ? '#f3f0ff' : 'white', color: viewport === size ? '#7c3aed' : '#6b7280', fontWeight: viewport === size ? 600 : 400, transition: 'all 0.15s' }}
                 >
-                  {icon} {label}
+                  {label}
                 </button>
               ))}
 
