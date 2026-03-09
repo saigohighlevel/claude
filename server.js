@@ -135,184 +135,89 @@ function makeBuilderPrompt(plan, photos) {
   const aboutImg = img(photos.about, 900, 600)
   const svcImgs = [img(photos.svc1, 800, 533), img(photos.svc2, 800, 533), img(photos.svc3, 800, 533)]
 
-  return `You are an elite React engineer at a world-class design agency. Build a stunning, production-quality landing page — the kind that wins Awwwards and Dribbble features.
+  return `You are an elite React engineer. Generate a COMPLETE, stunning landing page. You MUST output all 7 sections — do not stop early. This is the most important requirement.
 
-## BUSINESS
-Name: ${plan.business_name}
-Type: ${plan.business_type}
-Tagline: "${plan.tagline}"
-Theme: ${plan.theme}
 
-## DESIGN SYSTEM — use these exact values
-Primary: ${plan.primary}
-Accent: ${plan.accent}
-Background: ${plan.bg}
-Text: ${plan.text}
+## BRAND
+- Name: ${plan.business_name} | Type: ${plan.business_type} | Theme: ${plan.theme}
+- Primary: ${plan.primary} | Accent: ${plan.accent} | BG: ${plan.bg} | Text: ${plan.text}
+- Tagline: "${plan.tagline}"
 
-## IMAGES — use THESE EXACT URLs verbatim. Never substitute or omit.
-Hero background:      ${heroImg}
-Service card 1 image: ${svcImgs[0]}
-Service card 2 image: ${svcImgs[1]}
-Service card 3 image: ${svcImgs[2]}
-About section photo:  ${aboutImg}
-Testimonial avatar 1: ${avatars[0]}
-Testimonial avatar 2: ${avatars[1]}
-Testimonial avatar 3: ${avatars[2]}
+## EXACT IMAGES (copy these URLs verbatim — do not change them)
+- Hero bg: ${heroImg}
+- Service 1: ${svcImgs[0]}  |  Service 2: ${svcImgs[1]}  |  Service 3: ${svcImgs[2]}
+- About: ${aboutImg}
+- Avatar 1: ${avatars[0]}  |  Avatar 2: ${avatars[1]}  |  Avatar 3: ${avatars[2]}
 
-## CONTENT — use word-for-word
-Hero headline: "${plan.hero_headline}"
-Hero subheadline: "${plan.hero_sub}"
-Primary CTA: "${plan.hero_cta}"
-Services:
-${plan.services.map((s, i) => `  ${i + 1}. ${s.title}: ${s.desc}`).join('\n')}
-About headline: "${plan.about_headline}"
-About body: "${plan.about_body}"
-Testimonials:
-${plan.testimonials.map((t, i) => `  ${i + 1}. ${t.name} (${t.role}): "${t.quote}"`).join('\n')}
-Final CTA: "${plan.cta_headline}"
-Contact: ${plan.phone} | ${plan.email} | ${plan.address}
+## EXACT CONTENT
+- Hero H1: "${plan.hero_headline}"
+- Hero sub: "${plan.hero_sub}"
+- Hero CTA: "${plan.hero_cta}"
+- Services: ${plan.services.map(s => `"${s.title}: ${s.desc}"`).join(' | ')}
+- About headline: "${plan.about_headline}"
+- About body: "${plan.about_body}"
+- Testimonials: ${plan.testimonials.map(t => `${t.name} (${t.role}): "${t.quote}"`).join(' | ')}
+- Final CTA: "${plan.cta_headline}"
+- Contact: ${plan.phone} | ${plan.email} | ${plan.address}
 
 ## CODE RULES
-- Single file: export default function App()
-- React hooks only: useState, useEffect, useRef, useCallback, useMemo — NO other imports
-- Tailwind CSS classes (CDN available — all standard classes work)
-- All icons must be inline SVG elements — no icon library imports ever
-- Complete, untruncated output — never use "..." or "// rest of code here"
-- NEVER import react-router-dom, react-router, next/link, or any routing library
-- NEVER use window.location, history.pushState, or URL navigation APIs
+- export default function App() — single file, NO imports whatsoever
+- React globals already available: React, useState, useEffect, useRef, useCallback, useMemo
+- Tailwind CSS (CDN) for all styling — use className
+- Inline SVG for icons — no icon libraries
+- Output the FULL component — never truncate — do not use "..." — CRITICAL
+- NO react-router, NO window.location, NO history.pushState
 
-## NAVIGATION RULES (critical — rendered in iframe)
-- ALL nav links MUST use anchor hrefs: <a href="#section-id"> — never "/about" page paths
-- Every section MUST have the matching id attribute: <section id="services">
-- Smooth scroll: add onClick={e => { e.preventDefault(); document.getElementById('services')?.scrollIntoView({behavior:'smooth'}) }} to nav links
-- Tab/filter switching: use React useState only
-- Mobile menu: useState boolean toggle only
+## NAVIGATION (iframe environment)
+- Nav anchor links: onClick={e => {e.preventDefault(); document.getElementById('section-id')?.scrollIntoView({behavior:'smooth'})}}
+- Every section has matching id attribute
+- Mobile menu: useState boolean
+- No page routes
 
-## ANIMATIONS (AOS and GSAP are globally available — use them)
+## ANIMATIONS
+AOS globally available — add to scroll sections (NOT the hero):
+- data-aos="fade-up" on section headers
+- data-aos="fade-up" data-aos-delay="0"/"100"/"200" on service cards, testimonials
+- data-aos="fade-right" on about image, data-aos="fade-left" on about text
 
-**AOS scroll-triggered animations** — add data-aos attributes to elements:
-- Section headings/labels: data-aos="fade-up"
-- Service cards: data-aos="fade-up" data-aos-delay="0", "100", "200" (staggered)
-- About image: data-aos="fade-right", about text block: data-aos="fade-left"
-- Testimonial cards: data-aos="fade-up" with data-aos-delay="0","100","200"
-- Contact form: data-aos="fade-right", contact info: data-aos="fade-left"
-- Footer columns: data-aos="fade-up" with delays
-
-**GSAP hero entrance** — add in useEffect (check typeof gsap !== 'undefined' first):
-\`\`\`
+GSAP globally available — use ONLY for hero entrance animation:
+\`\`\`js
 useEffect(() => {
   if (typeof gsap === 'undefined') return
-  gsap.fromTo('.hero-title', {y:60,opacity:0}, {y:0,opacity:1,duration:1,ease:'power3.out'})
-  gsap.fromTo('.hero-sub', {y:40,opacity:0}, {y:0,opacity:1,duration:0.9,delay:0.25,ease:'power3.out'})
-  gsap.fromTo('.hero-cta-row', {y:30,opacity:0}, {y:0,opacity:1,duration:0.8,delay:0.45,ease:'power3.out'})
-  gsap.fromTo('.hero-stats', {y:20,opacity:0}, {y:0,opacity:1,duration:0.7,delay:0.65,ease:'power3.out'})
+  gsap.fromTo('.hero-title', {y:50,opacity:0}, {y:0,opacity:1,duration:0.9,ease:'power3.out'})
+  gsap.fromTo('.hero-sub',   {y:35,opacity:0}, {y:0,opacity:1,duration:0.8,delay:0.2,ease:'power3.out'})
+  gsap.fromTo('.hero-cta',   {y:25,opacity:0}, {y:0,opacity:1,duration:0.7,delay:0.4,ease:'power3.out'})
 }, [])
 \`\`\`
-Add className="hero-title" to H1, "hero-sub" to subheadline div, "hero-cta-row" to buttons row, "hero-stats" to stats row.
 
-## MODERN DESIGN PATTERNS (mandatory — these make the page premium)
+## DESIGN
+- Cards: glassmorphism — backdrop-blur-xl bg-white/${plan.theme==='dark'?'5':'80'} border border-white/${plan.theme==='dark'?'10':'60'} shadow-xl
+- Section H2: gradient text — style for bg gradient (primary→accent) with WebkitBackgroundClip text
+- Hover: transition-all duration-300 hover:-translate-y-1 hover:shadow-xl on cards
+- Service card images: overflow-hidden, img hover:scale-105 transition-transform duration-500
+- Buttons: bg gradient primary→accent, rounded-full, shadow-lg, hover:shadow-xl hover:-translate-y-0.5
 
-**Glassmorphism on cards** (light theme):
-  background: 'rgba(255,255,255,0.75)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.9)', boxShadow: '0 8px 32px rgba(0,0,0,0.08)'
-**Glassmorphism on cards** (dark theme):
-  background: 'rgba(255,255,255,0.04)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
+## 7 REQUIRED SECTIONS
 
-**Gradient section headline**: Apply to the main H2 in each section:
-  background: 'linear-gradient(135deg, ${plan.primary} 0%, ${plan.accent} 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text'
+1. NAV (sticky, z-50, glassmorphism, logo gradient text, pill CTA, hamburger mobile, shadow on scroll)
 
-**Hover micro-interactions** (add to every card and button):
-  transition: 'all 0.3s cubic-bezier(0.4,0,0.2,1)'
-  onMouseEnter: transform translateY(-6px) + enhanced shadow
-  onMouseLeave: reset
+2. HERO (min-h-screen, bg image NO fixed attachment — use only backgroundSize cover + backgroundPosition center)
+   Structure: badge pill → h1.hero-title → p.hero-sub → div.hero-cta (buttons) → stats row
+   Text color white throughout. Primary + secondary buttons.
 
-**Service card image zoom on hover**:
-  img style: transition 'transform 0.45s cubic-bezier(0.4,0,0.2,1)', scale(1) → scale(1.07) on card hover
+3. SERVICES (py-28, ${plan.bg} bg, gradient H2, 3-col grid, glassmorphism cards with image/body/explore link)
 
-**CTA button glow**:
-  background: linear-gradient(135deg, ${plan.primary}, ${plan.accent})
-  boxShadow: '0 0 0 0 ${plan.primary}40'
-  onMouseEnter: boxShadow '0 8px 40px ${plan.primary}55, 0 0 0 4px ${plan.primary}20'
+4. ABOUT (py-28, ${plan.theme==='dark'?'#0a0a14':'#f8f8fc'} bg, 2-col flex: photo left + text right, 3 checkmarks, CTA button)
 
-## 7 REQUIRED SECTIONS (all mandatory, in order)
+5. TESTIMONIALS (py-28, ${plan.theme==='dark'?'#050510':'#f0f0f8'} bg, 3-col grid, glassmorphism cards, stars + quote + avatar)
 
-### 1. STICKY NAV
-- position sticky top-0 z-50, backdropFilter blur(20px), WebkitBackdropFilter blur(20px)
-- ${plan.theme === 'dark' ? 'background: rgba(10,10,20,0.82)' : 'background: rgba(255,255,255,0.82)'}, borderBottom '1px solid ${plan.theme === 'dark' ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)'}'
-- Logo (business name bold, gradient text using primary→accent), nav links with hover underline animation, pill CTA button
-- Add scrolled state (useState + scroll listener) — when scrolled>20px add stronger shadow
-- Mobile hamburger (useState) reveals nav links vertically with smooth max-height transition
+6. CONTACT (py-28, ${plan.bg} bg, 2-col: form left + info right, map placeholder, submit with useState success state)
 
-### 2. HERO (minHeight: '100vh', position relative)
-- backgroundImage: 'linear-gradient(160deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.35) 60%, rgba(0,0,0,0.5) 100%), url(${heroImg})'
-- backgroundSize cover, backgroundPosition center, backgroundAttachment fixed (parallax feel)
-- Centered column: display flex, flexDirection column, alignItems center, justifyContent center, textAlign center, padding '0 24px', minHeight '100vh'
-- Floating badge pill above headline: small icon + text, background rgba(255,255,255,0.12), backdropFilter blur(8px)
-- H1 className="hero-title": clamp(3rem,6vw,5.5rem), fontWeight 900, letterSpacing -0.04em, color white, lineHeight 1.05
-- Subheadline div className="hero-sub": fontSize 1.2rem, color rgba(255,255,255,0.8), maxWidth 600px, lineHeight 1.7, marginTop 24px
-- Buttons row div className="hero-cta-row": flex, gap 16px, justifyContent center, marginTop 40px
-  Primary button: background 'linear-gradient(135deg, ${plan.primary}, ${plan.accent})', paddingY 16px, paddingX 36px, borderRadius 50px, fontWeight 700, fontSize 1rem, boxShadow '0 8px 32px ${plan.primary}55'
-  Secondary button: transparent, border '2px solid rgba(255,255,255,0.5)', color white, same padding, hover: background rgba(255,255,255,0.1)
-- Stats row div className="hero-stats": marginTop 48px, display flex, gap 40px, justifyContent center
-  Each stat: bold large number (color white), small label below (rgba(255,255,255,0.6))
-  Stats: "500+" clients, "4.9★" rating, years in business
+7. FOOTER (always dark #0d0d18, 4-col grid: brand+social | services | company | contact, bottom bar © + Built with Forge ⚡)
 
-### 3. SERVICES (3 cards)
-- Section paddingTop 112px, paddingBottom 112px, background ${plan.bg}
-- Center: label pill (uppercase, ${plan.primary}), gradient H2, subtitle maxWidth 560px
-- Grid: repeat(auto-fit,minmax(320px,1fr)), gap 32px, maxWidth 1240px, margin 64px auto 0
-- Each card: overflow hidden, borderRadius 20px, GLASSMORPHISM styles above, transition all 0.3s cubic-bezier(0.4,0,0.2,1)
-  - Image wrapper: overflow hidden, height 240px → img width 100% height 100% objectFit cover, scale transition on hover
-  - Body: padding 32px
-  - Colored icon circle (40px, ${plan.primary}15 bg, ${plan.primary} icon SVG 22px)
-  - h3: 1.2rem fontWeight 700 ${plan.text}
-  - p: 0.9rem color muted lineHeight 1.65
-  - Link "Explore →": ${plan.primary}, fontWeight 600, marginTop 16px, hover: gap increase
-  - Card hover: translateY(-8px), stronger shadow, image zoom
-  - Add data-aos="fade-up" with staggered delays
-
-### 4. ABOUT (two-column)
-- Section paddingTop 112px, paddingBottom 112px, background ${plan.theme === 'dark' ? 'rgba(255,255,255,0.02)' : '#f8f9fa'}
-- Container maxWidth 1240px margin auto, flex row gap 80px alignItems center (reverse on mobile)
-- Left 45%: img src=${aboutImg}, width 100%, height 520px objectFit cover, borderRadius 24px, boxShadow '0 32px 80px rgba(0,0,0,0.18)' — data-aos="fade-right"
-- Right 55%: data-aos="fade-left"
-  - Colored badge pill above headline
-  - H2: 2.25rem fontWeight 800 — gradient text
-  - Body text: 1rem lineHeight 1.8 color muted
-  - 3 bullet rows: flex gap 14px, SVG check circle icon (${plan.primary}), bold title + description
-  - CTA button: gradient background, paddingY 14px paddingX 32px borderRadius 50px fontWeight 700
-
-### 5. TESTIMONIALS
-- Section paddingTop 112px, paddingBottom 112px, background ${plan.theme === 'dark' ? '#080810' : '#f3f4f6'}
-- Centered gradient H2 with subtitle
-- Grid auto-fit minmax(300px,1fr) gap 28px maxWidth 1240px margin 64px auto 0
-- Each card: GLASSMORPHISM styles, borderRadius 20px, padding 36px — data-aos="fade-up" with delays
-  - Stars ★★★★★ in ${plan.accent} color, fontSize 1.2rem
-  - Large open-quote " mark (${plan.primary}, 4rem, opacity 0.3) as decorative element
-  - Quote: 1rem lineHeight 1.75 fontStyle italic color muted marginTop 8px
-  - Avatar row marginTop 24px: img 52px circle borderRadius 50% objectFit cover, name bold ${plan.text}, role muted 0.85rem
-
-### 6. CONTACT (two-column form + info)
-- Section paddingTop 112px, paddingBottom 112px, background ${plan.bg}
-- Container maxWidth 1240px margin auto, flex row gap 80px
-- Left form (data-aos="fade-right"): gradient H2, then form
-  - Inputs: width 100%, padding 14px 18px, border '1.5px solid ${plan.theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}', borderRadius 10px, background '${plan.theme === 'dark' ? 'rgba(255,255,255,0.05)' : '#f9fafb'}', fontSize 0.95rem, color ${plan.text}, transition 'border-color 0.2s'
-  - onFocus → borderColor ${plan.primary}
-  - Submit button: full-width, gradient background ${plan.primary}→${plan.accent}, padding 15px, borderRadius 10px, fontWeight 700, glow shadow on hover, uses useState for submitted state (show "✓ Sent!" when submitted)
-- Right info (data-aos="fade-left"): each row has gradient icon circle + text
-  - Address, phone, email, hours (Mon–Sat format)
-  - Add a decorative map placeholder div: background ${plan.primary}10, borderRadius 16px, height 180px, center text "📍 ${plan.address}"
-
-### 7. FOOTER
-- Background: always #0f0f18 (deep dark)
-- 4 columns grid: brand logo+tagline+social icons (GitHub/Twitter/Instagram SVGs in circles), Services list, Company list, Contact info
-- Brand column: gradient text logo name, muted tagline, social icon circles (${plan.primary}10 bg, 36px, SVG icons)
-- Text colors: rgba(255,255,255,0.9) headings, rgba(255,255,255,0.5) links/body
-- Links hover: rgba(255,255,255,0.9) with 0.2s transition
-- Bottom bar: border-top rgba(255,255,255,0.08), flex space-between, "© 2025 ${plan.business_name}" + "Built with Forge ⚡"
-- Padding: paddingTop 80px paddingBottom 32px
-
-## OUTPUT FORMAT
-One sentence summary, then the complete \`\`\`tsx component. Never truncate — output all 7 sections completely.`
+## OUTPUT
+Brief intro sentence, then complete \`\`\`tsx\\n[full component here]\\n\`\`\`
+MUST include all 7 sections. Never stop early.`
 }
 
 // ─── API Routes ───────────────────────────────────────────────────────────────
@@ -396,7 +301,7 @@ app.post('/api/build', async (req, res) => {
         },
         body: JSON.stringify({
           model: 'claude-sonnet-4-6',
-          max_tokens: 8000,
+          max_tokens: 16000,
           stream: true,
           system: systemPrompt,
           messages: msgs,
@@ -421,8 +326,8 @@ app.post('/api/build', async (req, res) => {
           'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
         },
         body: JSON.stringify({
-          model: 'gpt-4o',
-          max_tokens: 8000,
+          model: 'gpt-4.1',
+          max_tokens: 16000,
           stream: true,
           messages: [{ role: 'system', content: systemPrompt }, ...msgs],
         }),

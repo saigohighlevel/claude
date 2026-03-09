@@ -153,6 +153,7 @@ function LivePreview({ code, isGenerating, viewport, onReady }: {
         'setTimeout(function(){',
         '  if(typeof AOS!=="undefined")AOS.init({duration:750,easing:"ease-out-cubic",once:true,offset:60});',
         '  if(typeof gsap!=="undefined")gsap.registerPlugin();',
+        '  window.scrollTo(0,0);',
         '  sendHeight();',
         '},150);',
         'setTimeout(sendHeight,700);',
