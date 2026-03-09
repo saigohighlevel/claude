@@ -326,7 +326,7 @@ app.post('/api/build', async (req, res) => {
           'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
         },
         body: JSON.stringify({
-          model: 'gpt-5.4',
+          model: 'gpt-5.4-2026-03-05',
           max_tokens: 16000,
           stream: true,
           messages: [{ role: 'system', content: systemPrompt }, ...msgs],
