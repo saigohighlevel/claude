@@ -174,10 +174,19 @@ Contact: ${plan.phone} | ${plan.email} | ${plan.address}
 
 ## CODE RULES
 - Single file: export default function App()
-- React hooks: useState, useEffect, useRef, useCallback, useMemo — no other imports
+- React hooks: useState, useEffect, useRef, useCallback, useMemo — NO other imports at all
 - Tailwind CSS classes (CDN, all classes work)
 - All icons must be inline SVG — no icon library imports
 - Complete output — never truncate, never use "..." or comments like "rest of code here"
+- NEVER import or use react-router-dom, react-router, next/link, or any routing library
+- NEVER use window.location, history.pushState, or any URL navigation APIs
+
+## NAVIGATION RULES (critical — iframe environment)
+- ALL nav links MUST be anchor hrefs: <a href="#section-id"> — never use page paths like "/about"
+- Every section must have a matching id: e.g. <section id="services"> paired with <a href="#services">
+- For smooth scroll: use onClick with scrollIntoView or rely on CSS html{scroll-behavior:smooth}
+- Tab/filter switching: use React useState only — never navigate away from the page
+- Mobile menu toggle: use useState boolean, no routing involved
 
 ## 7 REQUIRED SECTIONS (all mandatory, in order)
 

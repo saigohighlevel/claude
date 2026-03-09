@@ -45,19 +45,21 @@ p{color:#6b7280;font-size:14px;font-weight:500}
 
 // ─── Live Preview ─────────────────────────────────────────────────────────────
 
-function LivePreview({ code, viewport }: { code: string; viewport: number }) {
+function LivePreview({ code, isGenerating, viewport }: { code: string; isGenerating: boolean; viewport: number }) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   useEffect(() => {
     if (!iframeRef.current) return
 
-    if (!code) {
+    // During generation, always show loading screen (never render partial code)
+    if (isGenerating || !code) {
+      clearTimeout(debounceRef.current)
       iframeRef.current.srcdoc = LOADING_HTML
       return
     }
 
-    // Debounce to avoid constant reloads during streaming
+    // Generation complete — debounce the render to avoid rapid re-renders
     clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
       if (!iframeRef.current) return
@@ -70,7 +72,7 @@ function LivePreview({ code, viewport }: { code: string; viewport: number }) {
         .replace(/^export\s+(?=const |let |var |function |class |interface |type )/gm, '')
         .replace(/^export\s*\{[^}]*\}\s*;?\s*$/gm, '')
 
-      // Build the code string: hooks + component + render
+      // Build the full code: hooks + component + render call
       const fullCode = [
         'const { useState, useEffect, useRef, useCallback, useMemo } = React;',
         processed,
@@ -81,8 +83,8 @@ function LivePreview({ code, viewport }: { code: string; viewport: number }) {
         '} catch(e) { showError(e.message + "\\n" + (e.stack||"")); }',
       ].join('\n')
 
-      // URL-encode so it can be safely embedded inside a JS string in HTML
-      const encoded = encodeURIComponent(fullCode)
+      // JSON.stringify safely escapes ALL special characters (\n, ", \, unicode, etc.)
+      const safeCode = JSON.stringify(fullCode)
 
       const sc = '<' + '/script>'
       iframeRef.current.srcdoc = [
@@ -90,26 +92,24 @@ function LivePreview({ code, viewport }: { code: string; viewport: number }) {
         '<meta name="viewport" content="width=device-width,initial-scale=1.0"/>',
         '<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js">' + sc,
         '<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js">' + sc,
-        '<script src="https://unpkg.com/@babel/standalone@7/babel.min.js">' + sc,
+        '<script src="https://unpkg.com/@babel/standalone@7.26.4/babel.min.js">' + sc,
         '<script src="https://cdn.tailwindcss.com">' + sc,
         '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>',
-        '<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:"Inter",system-ui,sans-serif}html{scroll-behavior:smooth}img{max-width:100%;height:auto}</style>',
+        '<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:"Inter",system-ui,sans-serif}html{scroll-behavior:smooth}img{max-width:100%;height:auto}a[href^="#"]{cursor:pointer}</style>',
         '</head><body><div id="root"></div><script>',
         'function showError(m){document.getElementById("root").innerHTML="<div style=\\"padding:32px;font-family:Inter,sans-serif\\"><div style=\\"background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:20px\\"><h3 style=\\"color:#dc2626;margin:0 0 8px;font-size:14px;font-weight:600\\">Preview Error</h3><pre style=\\"color:#991b1b;white-space:pre-wrap;font-size:12px;margin:0;font-family:monospace;line-height:1.5\\">"+m+"</pre></div></div>";}',
-        'window.onerror=function(m){showError(String(m));return true;};',
+        'window.onerror=function(msg,src,line,col,err){showError((err&&err.stack)||msg);return true;};',
         'try{',
-        'var __code=decodeURIComponent("' + encoded + '");',
-        'var __presets=[["react",{runtime:"classic"}]];',
-        'if(Babel.availablePresets&&Babel.availablePresets.typescript)__presets.push("typescript");',
-        'var __r=Babel.transform(__code,{presets:__presets,filename:"App.tsx"});',
+        'var __code=' + safeCode + ';',
+        'var __r=Babel.transform(__code,{presets:[["react",{runtime:"classic"}],"typescript"],filename:"App.tsx"});',
         '(0,eval)(__r.code);',
-        '}catch(e){showError(e.message);}',
+        '}catch(e){showError(e.message+(e.stack?"\\n\\n"+e.stack:""));}',
         sc + '</body></html>',
       ].join('\n')
-    }, 400)
+    }, 300)
 
     return () => clearTimeout(debounceRef.current)
-  }, [code])
+  }, [code, isGenerating])
 
   const isNarrowed = viewport < 1024
 
@@ -635,7 +635,7 @@ export default function Builder() {
           {/* Content */}
           <div style={{ flex: 1, overflow: 'hidden' }}>
             {view === 'preview'
-              ? <LivePreview code={code} viewport={viewport} />
+              ? <LivePreview code={code} isGenerating={isGenerating} viewport={viewport} />
               : <CodePanel code={code} />
             }
           </div>
