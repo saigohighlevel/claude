@@ -72,15 +72,13 @@ function LivePreview({ code, isGenerating, viewport, onReady }: {
   useEffect(() => {
     if (!iframeRef.current) return
 
-    // Show loading if no code yet
-    if (!code) {
+    // Show loading if no code yet or still generating (avoid rendering incomplete/broken TSX)
+    if (!code || isGenerating) {
       clearTimeout(debounceRef.current)
       iframeRef.current.srcdoc = LOADING_HTML
       return
     }
 
-    // During generation, debounce longer to avoid thrashing; once done, render quickly
-    const delay = isGenerating ? 1500 : 300
     clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
       if (!iframeRef.current) return
