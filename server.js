@@ -327,7 +327,7 @@ app.post('/api/build', async (req, res) => {
         },
         body: JSON.stringify({
           model: 'gpt-4.1',
-          max_tokens: 16000,
+          max_tokens: 32000,
           stream: true,
           messages: [{ role: 'system', content: systemPrompt }, ...msgs],
         }),
