@@ -45,26 +45,45 @@ p{color:#6b7280;font-size:14px;font-weight:500}
 
 // ─── Live Preview ─────────────────────────────────────────────────────────────
 
-function LivePreview({ code, isGenerating, viewport }: { code: string; isGenerating: boolean; viewport: number }) {
+function LivePreview({ code, isGenerating, viewport, onReady }: {
+  code: string
+  isGenerating: boolean
+  viewport: number
+  onReady?: (srcdoc: string) => void
+}) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+
+  const isNarrowed = viewport < 1024
+
+  // Auto-resize iframe height from postMessage when in narrowed viewport
+  useEffect(() => {
+    if (!isNarrowed) return
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === 'forge-resize' && iframeRef.current) {
+        const h = Math.max(Number(e.data.height) || 900, 900)
+        iframeRef.current.style.height = `${h}px`
+      }
+    }
+    window.addEventListener('message', handler)
+    return () => window.removeEventListener('message', handler)
+  }, [isNarrowed])
 
   useEffect(() => {
     if (!iframeRef.current) return
 
-    // During generation, always show loading screen (never render partial code)
+    // During generation show loading — never render partial code
     if (isGenerating || !code) {
       clearTimeout(debounceRef.current)
       iframeRef.current.srcdoc = LOADING_HTML
       return
     }
 
-    // Generation complete — debounce the render to avoid rapid re-renders
     clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
       if (!iframeRef.current) return
 
-      // Strip imports/exports for browser execution
+      // Strip module syntax for browser execution
       const processed = code
         .replace(/^import\s+.*$/gm, '')
         .replace(/^export\s+default\s+function/gm, 'function')
@@ -72,46 +91,83 @@ function LivePreview({ code, isGenerating, viewport }: { code: string; isGenerat
         .replace(/^export\s+(?=const |let |var |function |class |interface |type )/gm, '')
         .replace(/^export\s*\{[^}]*\}\s*;?\s*$/gm, '')
 
-      // Build the full code: hooks + component + render call
+      // Error boundary class + component code + render
       const fullCode = [
         'const { useState, useEffect, useRef, useCallback, useMemo } = React;',
+        // Error boundary catches React render errors and shows them instead of blank page
+        'class ErrorBoundary extends React.Component {',
+        '  constructor(p){super(p);this.state={err:null}}',
+        '  static getDerivedStateFromError(e){return{err:e}}',
+        '  componentDidCatch(e){console.error("Preview error:",e)}',
+        '  render(){',
+        '    if(this.state.err)return React.createElement("div",{style:{padding:"40px",fontFamily:"Inter,sans-serif"}},',
+        '      React.createElement("div",{style:{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:"12px",padding:"20px"}},',
+        '        React.createElement("h3",{style:{color:"#dc2626",fontSize:"14px",fontWeight:600,margin:"0 0 8px"}},"Component Error"),',
+        '        React.createElement("pre",{style:{color:"#991b1b",fontSize:"12px",whiteSpace:"pre-wrap",margin:0,fontFamily:"monospace"}},this.state.err.message)',
+        '      )',
+        '    );',
+        '    return this.props.children;',
+        '  }',
+        '}',
         processed,
+        'const TheApp = typeof App !== "undefined" ? App : function(){return React.createElement("div",{style:{padding:"40px",fontFamily:"Inter,sans-serif",color:"#6b7280"}},"No App component found");};',
         'try {',
         '  ReactDOM.createRoot(document.getElementById("root")).render(',
-        '    React.createElement(typeof App !== "undefined" ? App : function(){return React.createElement("div",{style:{padding:"40px",fontFamily:"Inter,sans-serif",color:"#6b7280"}},"No App component found");})',
+        '    React.createElement(ErrorBoundary, null, React.createElement(TheApp))',
         '  );',
         '} catch(e) { showError(e.message + "\\n" + (e.stack||"")); }',
       ].join('\n')
 
-      // JSON.stringify safely escapes ALL special characters (\n, ", \, unicode, etc.)
+      // JSON.stringify safely escapes all special characters
       const safeCode = JSON.stringify(fullCode)
 
       const sc = '<' + '/script>'
-      iframeRef.current.srcdoc = [
+      const srcdoc = [
         '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>',
         '<meta name="viewport" content="width=device-width,initial-scale=1.0"/>',
+        '<link rel="stylesheet" href="https://unpkg.com/aos@2.3.4/dist/aos.css"/>',
         '<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js">' + sc,
         '<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js">' + sc,
         '<script src="https://unpkg.com/@babel/standalone@7.26.4/babel.min.js">' + sc,
         '<script src="https://cdn.tailwindcss.com">' + sc,
+        '<script src="https://unpkg.com/aos@2.3.4/dist/aos.js">' + sc,
+        '<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js">' + sc,
         '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>',
-        '<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:"Inter",system-ui,sans-serif}html{scroll-behavior:smooth}img{max-width:100%;height:auto}a[href^="#"]{cursor:pointer}</style>',
+        '<style>',
+        '*{margin:0;padding:0;box-sizing:border-box}',
+        'body{font-family:"Inter",system-ui,sans-serif}',
+        'html{scroll-behavior:smooth}',
+        'img{max-width:100%;height:auto}',
+        'a[href^="#"]{cursor:pointer}',
+        '</style>',
         '</head><body><div id="root"></div><script>',
         'function showError(m){document.getElementById("root").innerHTML="<div style=\\"padding:32px;font-family:Inter,sans-serif\\"><div style=\\"background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:20px\\"><h3 style=\\"color:#dc2626;margin:0 0 8px;font-size:14px;font-weight:600\\">Preview Error</h3><pre style=\\"color:#991b1b;white-space:pre-wrap;font-size:12px;margin:0;font-family:monospace;line-height:1.5\\">"+m+"</pre></div></div>";}',
         'window.onerror=function(msg,src,line,col,err){showError((err&&err.stack)||msg);return true;};',
+        // Auto-resize: tell parent iframe our scroll height
+        'function sendHeight(){try{window.parent.postMessage({type:"forge-resize",height:Math.max(document.body.scrollHeight,document.documentElement.scrollHeight)},"*")}catch(e){}}',
         'try{',
         'var __code=' + safeCode + ';',
         'var __r=Babel.transform(__code,{presets:[["react",{runtime:"classic"}],"typescript"],filename:"App.tsx"});',
         '(0,eval)(__r.code);',
+        // Init AOS + GSAP + start resize reporting after React renders
+        'setTimeout(function(){',
+        '  if(typeof AOS!=="undefined")AOS.init({duration:750,easing:"ease-out-cubic",once:true,offset:60});',
+        '  if(typeof gsap!=="undefined")gsap.registerPlugin();',
+        '  sendHeight();',
+        '},150);',
+        'setTimeout(sendHeight,700);',
+        'setTimeout(sendHeight,2000);',
+        'new MutationObserver(sendHeight).observe(document.body,{childList:true,subtree:true});',
         '}catch(e){showError(e.message+(e.stack?"\\n\\n"+e.stack:""));}',
         sc + '</body></html>',
       ].join('\n')
+
+      iframeRef.current.srcdoc = srcdoc
+      onReady?.(srcdoc)
     }, 300)
 
     return () => clearTimeout(debounceRef.current)
-  }, [code, isGenerating])
-
-  const isNarrowed = viewport < 1024
+  }, [code, isGenerating, onReady])
 
   return (
     <div style={{
@@ -119,23 +175,24 @@ function LivePreview({ code, isGenerating, viewport }: { code: string; isGenerat
       display: 'flex',
       justifyContent: 'center',
       alignItems: isNarrowed ? 'flex-start' : 'stretch',
-      background: isNarrowed ? '#e5e7eb' : '#f3f4f6',
+      background: isNarrowed ? '#d1d5db' : '#f3f4f6',
       overflow: 'auto',
       padding: isNarrowed ? '24px' : '0',
     }}>
       <iframe
         ref={iframeRef}
         title="Preview"
-        sandbox="allow-scripts allow-same-origin"
+        sandbox="allow-scripts allow-same-origin allow-forms"
         style={{
           width: isNarrowed ? `${viewport}px` : '100%',
-          height: isNarrowed ? 'auto' : '100%',
+          height: isNarrowed ? '900px' : '100%',
           minHeight: isNarrowed ? '900px' : '100%',
           border: 'none',
           background: 'white',
           borderRadius: isNarrowed ? 12 : 0,
-          boxShadow: isNarrowed ? '0 4px 32px rgba(0,0,0,0.18)' : 'none',
+          boxShadow: isNarrowed ? '0 8px 40px rgba(0,0,0,0.2)' : 'none',
           display: 'block',
+          transition: 'height 0.3s ease',
         }}
       />
     </div>
@@ -289,6 +346,7 @@ export default function Builder() {
   const hasAutoGenerated = useRef(false)
   const planRef = useRef<Plan | null>(null)
   const photosRef = useRef<Record<string, string> | null>(null)
+  const srcdocRef = useRef('')
 
   // Keep refs in sync
   useEffect(() => { planRef.current = plan }, [plan])
@@ -620,7 +678,13 @@ export default function Builder() {
 
               {code && (
                 <button
-                  onClick={() => { window.open(`data:text/html,${encodeURIComponent(document.querySelector('iframe')?.srcdoc || '')}`) }}
+                  onClick={() => {
+                    const html = srcdocRef.current
+                    if (!html) return
+                    const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }))
+                    window.open(url)
+                    setTimeout(() => URL.revokeObjectURL(url), 60_000)
+                  }}
                   style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', border: '1px solid #e5e7eb', borderRadius: 7, cursor: 'pointer', fontSize: 12, fontFamily: 'inherit', background: 'white', color: '#6b7280', transition: 'all 0.15s' }}
                   onMouseEnter={e => { e.currentTarget.style.color = '#111827'; e.currentTarget.style.borderColor = '#d1d5db' }}
                   onMouseLeave={e => { e.currentTarget.style.color = '#6b7280'; e.currentTarget.style.borderColor = '#e5e7eb' }}
@@ -635,7 +699,7 @@ export default function Builder() {
           {/* Content */}
           <div style={{ flex: 1, overflow: 'hidden' }}>
             {view === 'preview'
-              ? <LivePreview code={code} isGenerating={isGenerating} viewport={viewport} />
+              ? <LivePreview code={code} isGenerating={isGenerating} viewport={viewport} onReady={s => { srcdocRef.current = s }} />
               : <CodePanel code={code} />
             }
           </div>

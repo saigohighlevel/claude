@@ -135,7 +135,7 @@ function makeBuilderPrompt(plan, photos) {
   const aboutImg = img(photos.about, 900, 600)
   const svcImgs = [img(photos.svc1, 800, 533), img(photos.svc2, 800, 533), img(photos.svc3, 800, 533)]
 
-  return `You are an elite React engineer. Build a stunning, production-quality landing page — the kind a $15,000 design agency would deliver.
+  return `You are an elite React engineer at a world-class design agency. Build a stunning, production-quality landing page — the kind that wins Awwwards and Dribbble features.
 
 ## BUSINESS
 Name: ${plan.business_name}
@@ -143,13 +143,13 @@ Type: ${plan.business_type}
 Tagline: "${plan.tagline}"
 Theme: ${plan.theme}
 
-## DESIGN SYSTEM — exact values only
+## DESIGN SYSTEM — use these exact values
 Primary: ${plan.primary}
 Accent: ${plan.accent}
 Background: ${plan.bg}
 Text: ${plan.text}
 
-## IMAGES — use THESE EXACT URLs verbatim. No substitutions, no placeholders.
+## IMAGES — use THESE EXACT URLs verbatim. Never substitute or omit.
 Hero background:      ${heroImg}
 Service card 1 image: ${svcImgs[0]}
 Service card 2 image: ${svcImgs[1]}
@@ -174,79 +174,145 @@ Contact: ${plan.phone} | ${plan.email} | ${plan.address}
 
 ## CODE RULES
 - Single file: export default function App()
-- React hooks: useState, useEffect, useRef, useCallback, useMemo — NO other imports at all
-- Tailwind CSS classes (CDN, all classes work)
-- All icons must be inline SVG — no icon library imports
-- Complete output — never truncate, never use "..." or comments like "rest of code here"
-- NEVER import or use react-router-dom, react-router, next/link, or any routing library
-- NEVER use window.location, history.pushState, or any URL navigation APIs
+- React hooks only: useState, useEffect, useRef, useCallback, useMemo — NO other imports
+- Tailwind CSS classes (CDN available — all standard classes work)
+- All icons must be inline SVG elements — no icon library imports ever
+- Complete, untruncated output — never use "..." or "// rest of code here"
+- NEVER import react-router-dom, react-router, next/link, or any routing library
+- NEVER use window.location, history.pushState, or URL navigation APIs
 
-## NAVIGATION RULES (critical — iframe environment)
-- ALL nav links MUST be anchor hrefs: <a href="#section-id"> — never use page paths like "/about"
-- Every section must have a matching id: e.g. <section id="services"> paired with <a href="#services">
-- For smooth scroll: use onClick with scrollIntoView or rely on CSS html{scroll-behavior:smooth}
-- Tab/filter switching: use React useState only — never navigate away from the page
-- Mobile menu toggle: use useState boolean, no routing involved
+## NAVIGATION RULES (critical — rendered in iframe)
+- ALL nav links MUST use anchor hrefs: <a href="#section-id"> — never "/about" page paths
+- Every section MUST have the matching id attribute: <section id="services">
+- Smooth scroll: add onClick={e => { e.preventDefault(); document.getElementById('services')?.scrollIntoView({behavior:'smooth'}) }} to nav links
+- Tab/filter switching: use React useState only
+- Mobile menu: useState boolean toggle only
+
+## ANIMATIONS (AOS and GSAP are globally available — use them)
+
+**AOS scroll-triggered animations** — add data-aos attributes to elements:
+- Section headings/labels: data-aos="fade-up"
+- Service cards: data-aos="fade-up" data-aos-delay="0", "100", "200" (staggered)
+- About image: data-aos="fade-right", about text block: data-aos="fade-left"
+- Testimonial cards: data-aos="fade-up" with data-aos-delay="0","100","200"
+- Contact form: data-aos="fade-right", contact info: data-aos="fade-left"
+- Footer columns: data-aos="fade-up" with delays
+
+**GSAP hero entrance** — add in useEffect (check typeof gsap !== 'undefined' first):
+\`\`\`
+useEffect(() => {
+  if (typeof gsap === 'undefined') return
+  gsap.fromTo('.hero-title', {y:60,opacity:0}, {y:0,opacity:1,duration:1,ease:'power3.out'})
+  gsap.fromTo('.hero-sub', {y:40,opacity:0}, {y:0,opacity:1,duration:0.9,delay:0.25,ease:'power3.out'})
+  gsap.fromTo('.hero-cta-row', {y:30,opacity:0}, {y:0,opacity:1,duration:0.8,delay:0.45,ease:'power3.out'})
+  gsap.fromTo('.hero-stats', {y:20,opacity:0}, {y:0,opacity:1,duration:0.7,delay:0.65,ease:'power3.out'})
+}, [])
+\`\`\`
+Add className="hero-title" to H1, "hero-sub" to subheadline div, "hero-cta-row" to buttons row, "hero-stats" to stats row.
+
+## MODERN DESIGN PATTERNS (mandatory — these make the page premium)
+
+**Glassmorphism on cards** (light theme):
+  background: 'rgba(255,255,255,0.75)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.9)', boxShadow: '0 8px 32px rgba(0,0,0,0.08)'
+**Glassmorphism on cards** (dark theme):
+  background: 'rgba(255,255,255,0.04)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
+
+**Gradient section headline**: Apply to the main H2 in each section:
+  background: 'linear-gradient(135deg, ${plan.primary} 0%, ${plan.accent} 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text'
+
+**Hover micro-interactions** (add to every card and button):
+  transition: 'all 0.3s cubic-bezier(0.4,0,0.2,1)'
+  onMouseEnter: transform translateY(-6px) + enhanced shadow
+  onMouseLeave: reset
+
+**Service card image zoom on hover**:
+  img style: transition 'transform 0.45s cubic-bezier(0.4,0,0.2,1)', scale(1) → scale(1.07) on card hover
+
+**CTA button glow**:
+  background: linear-gradient(135deg, ${plan.primary}, ${plan.accent})
+  boxShadow: '0 0 0 0 ${plan.primary}40'
+  onMouseEnter: boxShadow '0 8px 40px ${plan.primary}55, 0 0 0 4px ${plan.primary}20'
 
 ## 7 REQUIRED SECTIONS (all mandatory, in order)
 
 ### 1. STICKY NAV
-- position sticky top-0 z-50, backdrop-filter blur(12px)
-- ${plan.theme === 'dark' ? 'background: rgba(15,15,26,0.85)' : 'background: rgba(255,255,255,0.85)'}, border-bottom 1px solid (${plan.theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'})
-- Logo (business name bold), nav links, CTA button (primary bg, pill shape)
-- Mobile hamburger that works via useState, reveals nav links vertically
+- position sticky top-0 z-50, backdropFilter blur(20px), WebkitBackdropFilter blur(20px)
+- ${plan.theme === 'dark' ? 'background: rgba(10,10,20,0.82)' : 'background: rgba(255,255,255,0.82)'}, borderBottom '1px solid ${plan.theme === 'dark' ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)'}'
+- Logo (business name bold, gradient text using primary→accent), nav links with hover underline animation, pill CTA button
+- Add scrolled state (useState + scroll listener) — when scrolled>20px add stronger shadow
+- Mobile hamburger (useState) reveals nav links vertically with smooth max-height transition
 
-### 2. HERO (minHeight 100vh)
-- CSS: backgroundImage 'linear-gradient(to bottom, rgba(0,0,0,0.62) 0%, rgba(0,0,0,0.38) 100%), url(${heroImg})', backgroundSize cover, backgroundPosition center
-- Centered column: maxWidth 760px, padding 24px, textAlign center
-- H1: clamp(2.8rem, 5.5vw, 5rem) fontSize, fontWeight 800, letterSpacing -0.03em, color white, lineHeight 1.1
-- Subheadline: 1.15rem, rgba(255,255,255,0.82), marginTop 20px, lineHeight 1.7
-- Two buttons row: primary solid (${plan.primary} bg, white text, paddingY 14px, paddingX 32px, borderRadius 50px, fontWeight 600), secondary (transparent bg, 2px solid rgba(255,255,255,0.55), white text)
-- Stats row below buttons: "500+ Happy Clients · ★ 4.9 / 5 · Since 2015" — fontSize 0.875rem, rgba(255,255,255,0.65), marginTop 32px
+### 2. HERO (minHeight: '100vh', position relative)
+- backgroundImage: 'linear-gradient(160deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.35) 60%, rgba(0,0,0,0.5) 100%), url(${heroImg})'
+- backgroundSize cover, backgroundPosition center, backgroundAttachment fixed (parallax feel)
+- Centered column: display flex, flexDirection column, alignItems center, justifyContent center, textAlign center, padding '0 24px', minHeight '100vh'
+- Floating badge pill above headline: small icon + text, background rgba(255,255,255,0.12), backdropFilter blur(8px)
+- H1 className="hero-title": clamp(3rem,6vw,5.5rem), fontWeight 900, letterSpacing -0.04em, color white, lineHeight 1.05
+- Subheadline div className="hero-sub": fontSize 1.2rem, color rgba(255,255,255,0.8), maxWidth 600px, lineHeight 1.7, marginTop 24px
+- Buttons row div className="hero-cta-row": flex, gap 16px, justifyContent center, marginTop 40px
+  Primary button: background 'linear-gradient(135deg, ${plan.primary}, ${plan.accent})', paddingY 16px, paddingX 36px, borderRadius 50px, fontWeight 700, fontSize 1rem, boxShadow '0 8px 32px ${plan.primary}55'
+  Secondary button: transparent, border '2px solid rgba(255,255,255,0.5)', color white, same padding, hover: background rgba(255,255,255,0.1)
+- Stats row div className="hero-stats": marginTop 48px, display flex, gap 40px, justifyContent center
+  Each stat: bold large number (color white), small label below (rgba(255,255,255,0.6))
+  Stats: "500+" clients, "4.9★" rating, years in business
 
 ### 3. SERVICES (3 cards)
-- Section paddingTop 96px, paddingBottom 96px, background ${plan.bg}
-- Centered label (uppercase, tracking-widest, 0.75rem, ${plan.primary}), H2 (2.5rem bold, ${plan.text}), subtitle (1rem, muted, maxWidth 560px centered)
-- Grid: gridTemplateColumns repeat(auto-fit,minmax(300px,1fr)), gap 28px, maxWidth 1200px, margin 56px auto 0
-- Each card: overflow hidden, borderRadius 14px, boxShadow '0 4px 20px rgba(0,0,0,0.08)', border '1px solid rgba(0,0,0,0.06)', transition 'all 0.25s ease'
-  - Image: width 100%, height 220px, objectFit cover — use svcImgs above
-  - Body: padding 28px
-  - SVG icon (28px, ${plan.primary}), h3 1.15rem fontWeight 700, p 0.925rem color muted lineHeight 1.6, "Learn more →" link in ${plan.primary}
-  - Hover: translateY(-5px), boxShadow '0 16px 44px rgba(0,0,0,0.14)'
+- Section paddingTop 112px, paddingBottom 112px, background ${plan.bg}
+- Center: label pill (uppercase, ${plan.primary}), gradient H2, subtitle maxWidth 560px
+- Grid: repeat(auto-fit,minmax(320px,1fr)), gap 32px, maxWidth 1240px, margin 64px auto 0
+- Each card: overflow hidden, borderRadius 20px, GLASSMORPHISM styles above, transition all 0.3s cubic-bezier(0.4,0,0.2,1)
+  - Image wrapper: overflow hidden, height 240px → img width 100% height 100% objectFit cover, scale transition on hover
+  - Body: padding 32px
+  - Colored icon circle (40px, ${plan.primary}15 bg, ${plan.primary} icon SVG 22px)
+  - h3: 1.2rem fontWeight 700 ${plan.text}
+  - p: 0.9rem color muted lineHeight 1.65
+  - Link "Explore →": ${plan.primary}, fontWeight 600, marginTop 16px, hover: gap increase
+  - Card hover: translateY(-8px), stronger shadow, image zoom
+  - Add data-aos="fade-up" with staggered delays
 
 ### 4. ABOUT (two-column)
-- Section paddingTop 96px, paddingBottom 96px, background ${plan.theme === 'dark' ? 'rgba(255,255,255,0.03)' : '#f8f9fa'}
-- Container maxWidth 1200px margin auto, flex row, gap 64px, alignItems center
-- Left (45%): img src=${aboutImg}, width 100%, height 500px, objectFit cover, borderRadius 16px, boxShadow '0 20px 60px rgba(0,0,0,0.15)'
-- Right (55%): colored badge pill, H2 2rem fontWeight 800 ${plan.text}, body text 1rem lineHeight 1.75, 3 bullet points with SVG check icon (${plan.primary}), CTA button (${plan.primary} bg)
-- On mobile (max-width 768px): stack vertically, img full width, height 300px
+- Section paddingTop 112px, paddingBottom 112px, background ${plan.theme === 'dark' ? 'rgba(255,255,255,0.02)' : '#f8f9fa'}
+- Container maxWidth 1240px margin auto, flex row gap 80px alignItems center (reverse on mobile)
+- Left 45%: img src=${aboutImg}, width 100%, height 520px objectFit cover, borderRadius 24px, boxShadow '0 32px 80px rgba(0,0,0,0.18)' — data-aos="fade-right"
+- Right 55%: data-aos="fade-left"
+  - Colored badge pill above headline
+  - H2: 2.25rem fontWeight 800 — gradient text
+  - Body text: 1rem lineHeight 1.8 color muted
+  - 3 bullet rows: flex gap 14px, SVG check circle icon (${plan.primary}), bold title + description
+  - CTA button: gradient background, paddingY 14px paddingX 32px borderRadius 50px fontWeight 700
 
 ### 5. TESTIMONIALS
-- Section paddingTop 96px, paddingBottom 96px, background ${plan.theme === 'dark' ? '#050507' : '#f3f4f6'}
-- Centered H2 above
-- Grid 3 cols (auto-fit, minmax(280px, 1fr)), gap 24px, maxWidth 1200px margin auto
-- Each card: padding 32px, background ${plan.theme === 'dark' ? '#111118' : 'white'}, borderRadius 14px, boxShadow subtle
-  - "★★★★★" in gold/amber color (#f59e0b), fontSize 1.1rem
-  - Quote: italic, 0.975rem, lineHeight 1.7, color muted, marginTop 12px
-  - Avatar row: img 48px circle (objectFit cover, borderRadius 50%), bold name + muted role — use the portrait URLs above
+- Section paddingTop 112px, paddingBottom 112px, background ${plan.theme === 'dark' ? '#080810' : '#f3f4f6'}
+- Centered gradient H2 with subtitle
+- Grid auto-fit minmax(300px,1fr) gap 28px maxWidth 1240px margin 64px auto 0
+- Each card: GLASSMORPHISM styles, borderRadius 20px, padding 36px — data-aos="fade-up" with delays
+  - Stars ★★★★★ in ${plan.accent} color, fontSize 1.2rem
+  - Large open-quote " mark (${plan.primary}, 4rem, opacity 0.3) as decorative element
+  - Quote: 1rem lineHeight 1.75 fontStyle italic color muted marginTop 8px
+  - Avatar row marginTop 24px: img 52px circle borderRadius 50% objectFit cover, name bold ${plan.text}, role muted 0.85rem
 
 ### 6. CONTACT (two-column form + info)
-- Section paddingTop 96px, paddingBottom 96px, background ${plan.bg}
-- Container maxWidth 1200px margin auto, flex row gap 64px
-- Left: H2, form with Name / Email / Phone inputs + Message textarea
-  - Input style: width 100%, padding 13px 16px, border '1.5px solid rgba(0,0,0,0.12)', borderRadius 8, fontSize 0.95rem, outline none, on focus border-color ${plan.primary}
-  - Submit: width 100%, padding 14px, background ${plan.primary}, color white, fontWeight 600, borderRadius 8, cursor pointer
-- Right: address, phone, email, hours — each row with inline SVG icon (${plan.primary}), text
+- Section paddingTop 112px, paddingBottom 112px, background ${plan.bg}
+- Container maxWidth 1240px margin auto, flex row gap 80px
+- Left form (data-aos="fade-right"): gradient H2, then form
+  - Inputs: width 100%, padding 14px 18px, border '1.5px solid ${plan.theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}', borderRadius 10px, background '${plan.theme === 'dark' ? 'rgba(255,255,255,0.05)' : '#f9fafb'}', fontSize 0.95rem, color ${plan.text}, transition 'border-color 0.2s'
+  - onFocus → borderColor ${plan.primary}
+  - Submit button: full-width, gradient background ${plan.primary}→${plan.accent}, padding 15px, borderRadius 10px, fontWeight 700, glow shadow on hover, uses useState for submitted state (show "✓ Sent!" when submitted)
+- Right info (data-aos="fade-left"): each row has gradient icon circle + text
+  - Address, phone, email, hours (Mon–Sat format)
+  - Add a decorative map placeholder div: background ${plan.primary}10, borderRadius 16px, height 180px, center text "📍 ${plan.address}"
 
 ### 7. FOOTER
-- Background #111827 (always dark, regardless of theme)
-- Text colors: white headings, rgba(255,255,255,0.6) body text
-- 4 columns: brand (logo + tagline + social SVG icons in circles), Services, Company, Contact
-- Bottom bar: flex row, border-top rgba(255,255,255,0.1), copyright left, "Built with Forge" right
-- Padding: paddingTop 64px, paddingBottom 24px
+- Background: always #0f0f18 (deep dark)
+- 4 columns grid: brand logo+tagline+social icons (GitHub/Twitter/Instagram SVGs in circles), Services list, Company list, Contact info
+- Brand column: gradient text logo name, muted tagline, social icon circles (${plan.primary}10 bg, 36px, SVG icons)
+- Text colors: rgba(255,255,255,0.9) headings, rgba(255,255,255,0.5) links/body
+- Links hover: rgba(255,255,255,0.9) with 0.2s transition
+- Bottom bar: border-top rgba(255,255,255,0.08), flex space-between, "© 2025 ${plan.business_name}" + "Built with Forge ⚡"
+- Padding: paddingTop 80px paddingBottom 32px
 
 ## OUTPUT FORMAT
-One sentence summary, then the complete \`\`\`tsx component. No truncation.`
+One sentence summary, then the complete \`\`\`tsx component. Never truncate — output all 7 sections completely.`
 }
 
 // ─── API Routes ───────────────────────────────────────────────────────────────

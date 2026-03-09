@@ -1,10 +1,23 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { motion, type Variants } from 'framer-motion'
 import {
   Sparkles, ArrowRight, Zap, Code2, Globe, Layers,
   GitBranch, Play, CheckCircle, ChevronRight, Star,
   MessageSquare, Eye, Cpu, Lock, Rocket
 } from 'lucide-react'
+
+const fadeUp: Variants = {
+  hidden: { opacity: 0, y: 40 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.65, ease: 'easeOut' } },
+}
+
+const fadeUpStagger: Variants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.1 } },
+}
+
+const inView = { once: true, margin: '-80px' }
 
 const PROMPTS = [
   'Build me a SaaS landing page with pricing tables...',
@@ -573,7 +586,8 @@ export default function Landing() {
 
       {/* How it works */}
       <section style={{ padding: '100px 2rem', maxWidth: 1100, margin: '0 auto' }}>
-        <div style={{ textAlign: 'center', marginBottom: 64 }}>
+        <motion.div style={{ textAlign: 'center', marginBottom: 64 }}
+          initial="hidden" whileInView="show" viewport={inView} variants={fadeUp}>
           <div style={{
             display: 'inline-block', fontSize: 12, fontWeight: 600, color: '#7c3aed',
             letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 16,
@@ -582,9 +596,10 @@ export default function Landing() {
             From idea to live app
             <br /><span style={{ background: 'linear-gradient(135deg, #7c3aed, #a855f7)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>in four steps</span>
           </h2>
-        </div>
+        </motion.div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 24, position: 'relative' }}>
+        <motion.div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 24, position: 'relative' }}
+          initial="hidden" whileInView="show" viewport={inView} variants={fadeUpStagger}>
           {/* Connecting line */}
           <div style={{
             position: 'absolute', top: 40, left: '12.5%', right: '12.5%', height: 1,
@@ -592,9 +607,7 @@ export default function Landing() {
           }} />
 
           {STEPS.map((step) => (
-            <div key={step.num} style={{
-              textAlign: 'center', padding: '0 12px',
-            }}>
+            <motion.div key={step.num} variants={fadeUp} style={{ textAlign: 'center', padding: '0 12px' }}>
               <div style={{
                 width: 56, height: 56, borderRadius: '50%',
                 background: 'rgba(124,58,237,0.06)',
@@ -609,14 +622,15 @@ export default function Landing() {
               </div>
               <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: '#111827' }}>{step.title}</h3>
               <p style={{ fontSize: 13, color: '#6b7280', lineHeight: 1.6, margin: 0 }}>{step.desc}</p>
-            </div>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       </section>
 
       {/* Features */}
       <section style={{ padding: '100px 2rem', maxWidth: 1100, margin: '0 auto', background: '#f9fafb', borderRadius: 24 }} id="features">
-        <div style={{ textAlign: 'center', marginBottom: 64 }}>
+        <motion.div style={{ textAlign: 'center', marginBottom: 64 }}
+          initial="hidden" whileInView="show" viewport={inView} variants={fadeUp}>
           <div style={{
             display: 'inline-block', fontSize: 12, fontWeight: 600, color: '#7c3aed',
             letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 16,
@@ -625,26 +639,20 @@ export default function Landing() {
             Everything you need to
             <br /><span style={{ background: 'linear-gradient(135deg, #7c3aed, #a855f7)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>build and ship</span>
           </h2>
-        </div>
+        </motion.div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
+        <motion.div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}
+          initial="hidden" whileInView="show" viewport={inView} variants={fadeUpStagger}>
           {FEATURES.map((f) => {
             const Icon = f.icon
             return (
-              <div key={f.title} style={{
-                background: '#ffffff', border: '1px solid rgba(0,0,0,0.06)',
-                borderRadius: 16, padding: 28, transition: 'all 0.3s ease',
-                cursor: 'default', boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-              }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.borderColor = `${f.color}30`
-                  e.currentTarget.style.boxShadow = `0 8px 32px ${f.color}12`
-                  e.currentTarget.style.transform = 'translateY(-3px)'
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.borderColor = 'rgba(0,0,0,0.06)'
-                  e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)'
-                  e.currentTarget.style.transform = 'translateY(0)'
+              <motion.div key={f.title} variants={fadeUp}
+                whileHover={{ y: -5, boxShadow: `0 12px 40px ${f.color}18`, borderColor: `${f.color}30` }}
+                style={{
+                  background: '#ffffff', border: '1px solid rgba(0,0,0,0.06)',
+                  borderRadius: 16, padding: 28, cursor: 'default',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                  transition: 'border-color 0.3s ease',
                 }}
               >
                 <div style={{
@@ -657,22 +665,24 @@ export default function Landing() {
                 </div>
                 <h3 style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 8 }}>{f.title}</h3>
                 <p style={{ fontSize: 13, color: '#6b7280', lineHeight: 1.7, margin: 0 }}>{f.desc}</p>
-              </div>
+              </motion.div>
             )
           })}
-        </div>
+        </motion.div>
       </section>
 
       {/* Testimonials */}
       <section style={{ padding: '100px 2rem', maxWidth: 1100, margin: '0 auto' }}>
-        <div style={{ textAlign: 'center', marginBottom: 64 }}>
+        <motion.div style={{ textAlign: 'center', marginBottom: 64 }}
+          initial="hidden" whileInView="show" viewport={inView} variants={fadeUp}>
           <h2 style={{ fontSize: 'clamp(2rem, 4vw, 2.8rem)', fontWeight: 800, letterSpacing: '-0.03em', margin: 0, color: '#111827' }}>
             Loved by builders
           </h2>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
+        </motion.div>
+        <motion.div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}
+          initial="hidden" whileInView="show" viewport={inView} variants={fadeUpStagger}>
           {TESTIMONIALS.map((t) => (
-            <div key={t.name} style={{
+            <motion.div key={t.name} variants={fadeUp} whileHover={{ y: -4 }} style={{
               background: '#ffffff', border: '1px solid rgba(0,0,0,0.06)',
               borderRadius: 16, padding: 28,
               boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
@@ -697,13 +707,14 @@ export default function Landing() {
                   <div style={{ fontSize: 12, color: '#9ca3af' }}>{t.role}</div>
                 </div>
               </div>
-            </div>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       </section>
 
       {/* CTA */}
-      <section style={{ padding: '100px 2rem', textAlign: 'center', position: 'relative', overflow: 'hidden', background: '#f9fafb', borderRadius: 24, margin: '0 2rem' }}>
+      <motion.section style={{ padding: '100px 2rem', textAlign: 'center', position: 'relative', overflow: 'hidden', background: '#f9fafb', borderRadius: 24, margin: '0 2rem' }}
+        initial="hidden" whileInView="show" viewport={inView} variants={fadeUp}>
         <Orb style={{ width: 600, height: 600, background: 'radial-gradient(circle, rgba(124,58,237,0.06) 0%, transparent 70%)', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }} />
         <div style={{ position: 'relative', maxWidth: 700, margin: '0 auto' }}>
           <h2 style={{ fontSize: 'clamp(2.2rem, 5vw, 3.5rem)', fontWeight: 800, letterSpacing: '-0.04em', marginBottom: 20, lineHeight: 1.1, color: '#111827' }}>
@@ -753,7 +764,7 @@ export default function Landing() {
             ))}
           </div>
         </div>
-      </section>
+      </motion.section>
 
       {/* Footer */}
       <footer style={{
