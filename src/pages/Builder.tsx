@@ -57,6 +57,16 @@ function LivePreview({ code, isGenerating, viewport, onReady }: {
 
   const isNarrowed = viewport < 1024
 
+  // Always-active handler for iframe errors — NOT gated on isNarrowed so errors
+  // are visible in desktop mode too. (Resize is separate below.)
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === 'forge-iframe-error') console.warn('[iframe]', e.data.msg)
+    }
+    window.addEventListener('message', handler)
+    return () => window.removeEventListener('message', handler)
+  }, [])
+
   // Auto-resize iframe height from postMessage when in narrowed viewport
   useEffect(() => {
     if (!isNarrowed) return
@@ -64,8 +74,6 @@ function LivePreview({ code, isGenerating, viewport, onReady }: {
       if (e.data?.type === 'forge-resize' && iframeRef.current) {
         const h = Math.max(Number(e.data.height) || 900, 900)
         iframeRef.current.style.height = `${h}px`
-      } else if (e.data?.type === 'forge-iframe-error') {
-        console.warn('[iframe]', e.data.msg)
       }
     }
     window.addEventListener('message', handler)
@@ -92,13 +100,25 @@ function LivePreview({ code, isGenerating, viewport, onReady }: {
     debounceRef.current = setTimeout(() => {
       if (!iframeRef.current) return
 
-      // Strip module syntax for browser execution
+      // Strip module syntax for browser execution.
+      // Uses the `s` (dotAll) flag so multi-line imports like:
+      //   import {
+      //     useState,
+      //   } from 'react'
+      // are fully removed, not just the first line.
       const processed = code
+        // Remove all import statements (single and multi-line, with or without `from`)
+        .replace(/import\s+(?:type\s+)?(?:[\s\S]*?from\s+)?['"][^'"]*['"]\s*;?/gs, '')
+        // Remove any lines the above missed (bare `import ...` lines)
         .replace(/^import\s+.*$/gm, '')
+        // Remove export modifiers, keeping the declaration
         .replace(/^export\s+default\s+function/gm, 'function')
         .replace(/^export\s+default\s+/gm, '')
         .replace(/^export\s+(?=const |let |var |function |class |interface |type )/gm, '')
-        .replace(/^export\s*\{[^}]*\}\s*;?\s*$/gm, '')
+        // Remove multi-line and single-line export { ... } blocks
+        .replace(/export\s*\{[^}]*\}\s*;?/gs, '')
+        // Remove any LLM-added ReactDOM mount calls to prevent double-mounting
+        .replace(/^\s*ReactDOM\.(createRoot|render)\b.*$/gm, '')
 
       // Error boundary class + component code + render
       const fullCode = [
@@ -107,7 +127,7 @@ function LivePreview({ code, isGenerating, viewport, onReady }: {
         'class ErrorBoundary extends React.Component {',
         '  constructor(p){super(p);this.state={err:null}}',
         '  static getDerivedStateFromError(e){return{err:e}}',
-        '  componentDidCatch(e){console.error("Preview error:",e)}',
+        '  componentDidCatch(e,i){fwdErr("[ErrorBoundary] "+(e&&(e.stack||e.message)||String(e)))}',
         '  render(){',
         '    if(this.state.err)return React.createElement("div",{style:{padding:"40px",fontFamily:"Inter,sans-serif"}},',
         '      React.createElement("div",{style:{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:"12px",padding:"20px"}},',
@@ -127,8 +147,10 @@ function LivePreview({ code, isGenerating, viewport, onReady }: {
         '} catch(e) { showError(e.message + "\\n" + (e.stack||"")); }',
       ].join('\n')
 
-      // JSON.stringify safely escapes all special characters
-      const safeCode = JSON.stringify(fullCode)
+      // JSON.stringify escapes quotes/backslashes but NOT </script>.
+      // Escape it manually so the HTML parser doesn't close the <script> tag early
+      // if the generated code contains that string in a comment or string literal.
+      const safeCode = JSON.stringify(fullCode).replace(/<\/script>/gi, '<\\/script>')
 
       const sc = '<' + '/script>'
       const srcdoc = [
@@ -151,10 +173,13 @@ function LivePreview({ code, isGenerating, viewport, onReady }: {
         'a[href^="#"]{cursor:pointer}',
         '</style>',
         '</head><body><div id="root"></div><script>',
-        'function fwdErr(m){try{window.parent.postMessage({type:"forge-iframe-error",msg:m},"*")}catch(e){}}',
-        'function showError(m){fwdErr(m);document.getElementById("root").innerHTML="<div style=\\"padding:32px;font-family:Inter,sans-serif\\"><div style=\\"background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:20px\\"><h3 style=\\"color:#dc2626;margin:0 0 8px;font-size:14px;font-weight:600\\">Preview Error</h3><pre style=\\"color:#991b1b;white-space:pre-wrap;font-size:12px;margin:0;font-family:monospace;line-height:1.5\\">"+m+"</pre></div></div>";}',
+        'function fwdErr(m){try{window.parent.postMessage({type:"forge-iframe-error",msg:String(m).slice(0,2000)},"*")}catch(e){}}',
+        'function showError(m){fwdErr("[showError] "+m);document.getElementById("root").innerHTML="<div style=\\"padding:32px;font-family:Inter,sans-serif\\"><div style=\\"background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:20px\\"><h3 style=\\"color:#dc2626;margin:0 0 8px;font-size:14px;font-weight:600\\">Preview Error</h3><pre style=\\"color:#991b1b;white-space:pre-wrap;font-size:12px;margin:0;font-family:monospace;line-height:1.5\\">"+(m||"").replace(/&/g,"&amp;").replace(/</g,"&lt;")+"</pre></div></div>";}',
         'window.onerror=function(msg,src,line,col,err){showError((err&&err.stack)||msg);return true;};',
         'window.onunhandledrejection=function(e){showError(String(e.reason));return true;};',
+        // Forward console.error (React logs errors here, not via onerror)
+        'var __origCE=console.error.bind(console);',
+        'console.error=function(){var a=Array.from(arguments).map(function(x){return x instanceof Error?x.stack||x.message:typeof x==="object"&&x!==null?JSON.stringify(x):String(x);}).join(" ");fwdErr("[console.error] "+a);__origCE.apply(console,arguments);};',
         // Auto-resize: tell parent iframe our scroll height
         'function sendHeight(){try{window.parent.postMessage({type:"forge-resize",height:Math.max(document.body.scrollHeight,document.documentElement.scrollHeight)},"*")}catch(e){}}',
         'try{',
