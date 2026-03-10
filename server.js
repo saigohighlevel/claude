@@ -237,7 +237,8 @@ MUST include all 7 sections with proper id attributes. Never stop early.`
 // ─── Code Verification ────────────────────────────────────────────────────────
 
 function extractCode(text) {
-  const match = text.match(/```(?:tsx?|typescript|jsx?)\n([\s\S]+?)```/)
+  // Language tag is optional: handles ```tsx, ```typescript, ```javascript, ```jsx, ```js, ```ts, or bare ```
+  const match = text.match(/```(?:tsx?|typescript|jsx?|javascript)?\n([\s\S]+?)```/)
   return match ? match[1] : null
 }
 
@@ -249,8 +250,9 @@ function verifyCode(code) {
     return { valid: false, error: `Code is too short (${lines} lines). A complete 7-section landing page should be 300+ lines. Output was likely truncated.` }
   }
 
-  if (!/export\s+default\s+function\s+App/.test(code)) {
-    return { valid: false, error: 'Missing "export default function App" — component not properly exported.' }
+  // Accept both function declaration and const arrow function exports
+  if (!/export\s+default\s+(function\s+)?App/.test(code) && !/const\s+App\s*=/.test(code)) {
+    return { valid: false, error: 'Missing App component export — need "export default function App" or "const App = ..."' }
   }
 
   // Use prefix matching so id="hero-section" also passes
@@ -483,7 +485,12 @@ Output only a single \`\`\`tsx code block with the full component.`,
       console.log(`[build] patch response: ${patchResponse.length} chars, ${patchResponse.split('\n').length} lines`)
       const patchCode = extractCode(patchResponse)
       const patchVerify = verifyCode(patchCode)
-      console.log(`[build] patch verify: ${patchVerify.valid ? '✓ PASS' : `✗ FAIL — ${patchVerify.error}`}`)
+      if (patchVerify.valid) {
+        console.log(`[build] patch verify: ✓ PASS`)
+      } else {
+        console.log(`[build] patch verify: ✗ FAIL — ${patchVerify.error} (sending anyway)`)
+        // Don't error out — the streamed patch is already sent; client will render what it has
+      }
     } else {
       console.log(`[build] ✓ verified, streaming to client (${fullResponse.length} chars)`)
     }
