@@ -26,7 +26,7 @@ interface Plan {
 }
 
 interface Message {
-  id: number
+  id: string
   role: 'user' | 'assistant' | 'plan'
   content: string
   plan?: Plan
@@ -71,8 +71,6 @@ function LivePreview({ code, isGenerating, viewport, onReady }: {
 
   useEffect(() => {
     if (!iframeRef.current) return
-
-    console.log(`[preview] effect: code=${code.length}chars isGenerating=${isGenerating}`)
 
     // Show loading if no code yet or still generating (avoid rendering incomplete/broken TSX)
     if (!code || isGenerating) {
@@ -197,7 +195,7 @@ function LivePreview({ code, isGenerating, viewport, onReady }: {
       <iframe
         ref={iframeRef}
         title="Preview"
-        sandbox="allow-scripts allow-same-origin allow-forms"
+        sandbox="allow-scripts allow-forms"
         style={{
           width: isNarrowed ? `${viewport}px` : '100%',
           height: isNarrowed ? '900px' : '100%',
@@ -354,7 +352,7 @@ export default function Builder() {
   const [messages, setMessages] = useState<Message[]>(() => {
     const p = sessionStorage.getItem('buildPrompt')
       || 'Build a website for a premium hair salon called "Luxe & Flow" in Miami Beach — specializing in cuts, color, and bridal styling'
-    return [{ id: Date.now(), role: 'user', content: p }]
+    return [{ id: crypto.randomUUID(), role: 'user', content: p }]
   })
   const [code, setCode] = useState('')
   const [plan, setPlan] = useState<Plan | null>(null)
@@ -430,7 +428,7 @@ export default function Builder() {
         setPlan(data.plan)
         setPhotos(data.photos)
         setMessages(prev => [...prev, {
-          id: Date.now() + 1,
+          id: crypto.randomUUID(),
           role: 'plan',
           content: '',
           plan: data.plan,
@@ -444,7 +442,7 @@ export default function Builder() {
 
     // Stage 2: Build (streaming)
     setGenStage('building')
-    const aiMsgId = Date.now() + 2
+    const aiMsgId = crypto.randomUUID()
     setMessages(prev => [...prev, { id: aiMsgId, role: 'assistant', content: '' }])
 
     let accumulated = ''
@@ -519,7 +517,7 @@ export default function Builder() {
     const msg = input.trim()
     if (!msg || isGenerating) return
     setInput('')
-    const userMsg: Message = { id: Date.now(), role: 'user', content: msg }
+    const userMsg: Message = { id: crypto.randomUUID(), role: 'user', content: msg }
     const currentMessages = [...messages, userMsg]
     setMessages(currentMessages)
     generate(msg, planRef.current, photosRef.current, currentMessages)
