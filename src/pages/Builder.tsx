@@ -132,6 +132,7 @@ function LivePreview({ code, isGenerating, viewport, onReady }: {
         '<script src="https://cdn.tailwindcss.com">' + sc,
         '<script src="https://unpkg.com/aos@2.3.4/dist/aos.js">' + sc,
         '<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js">' + sc,
+        '<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js">' + sc,
         '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>',
         '<style>',
         '*{margin:0;padding:0;box-sizing:border-box}',
@@ -153,9 +154,12 @@ function LivePreview({ code, isGenerating, viewport, onReady }: {
         'setTimeout(function(){',
         '  if(typeof AOS!=="undefined")AOS.init({duration:750,easing:"ease-out-cubic",once:true,offset:60});',
         '  if(typeof gsap!=="undefined")gsap.registerPlugin();',
+        '  if(typeof lucide!=="undefined")lucide.createIcons();',
         '  window.scrollTo(0,0);',
         '  sendHeight();',
         '},150);',
+        // Re-run createIcons when React updates the DOM (e.g. conditional renders)
+        'new MutationObserver(function(){if(typeof lucide!=="undefined")lucide.createIcons()}).observe(document.getElementById("root"),{childList:true,subtree:true});',
         'setTimeout(sendHeight,700);',
         'setTimeout(sendHeight,2000);',
         'new MutationObserver(sendHeight).observe(document.body,{childList:true,subtree:true});',
@@ -279,33 +283,42 @@ function PlanCard({ plan }: { plan: Plan }) {
 
 // ─── Generating Indicator ─────────────────────────────────────────────────────
 
-function GeneratingIndicator({ stage }: { stage: 'planning' | 'building' }) {
+const AGENT_STAGES: Array<{
+  key: 'planning' | 'building' | 'verifying' | 'patching'
+  label: string
+  doneLabel: string
+  sub: string
+}> = [
+  { key: 'planning',   label: 'Planning your website…',   doneLabel: 'Plan complete',       sub: 'Choosing layout, colors & images' },
+  { key: 'building',   label: 'Building React component…', doneLabel: 'Component built',     sub: 'Generating all 7 sections' },
+  { key: 'verifying',  label: 'Verifying quality…',        doneLabel: 'Quality verified',    sub: 'Checking sections & syntax' },
+  { key: 'patching',   label: 'Fixing issues…',            doneLabel: 'Issues resolved',     sub: 'Regenerating from context' },
+]
+
+function GeneratingIndicator({ stage }: { stage: 'planning' | 'building' | 'verifying' | 'patching' }) {
+  const currentIdx = AGENT_STAGES.findIndex(s => s.key === stage)
+  const spinner = { width: 20, height: 20, borderRadius: '50%', border: '2.5px solid #ede9fe', borderTopColor: '#7c3aed', animation: 'forge-spin 0.75s linear infinite', flexShrink: 0 } as const
+  const check = { width: 20, height: 20, borderRadius: '50%', background: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 11, color: 'white' } as const
+
   return (
     <div style={{ background: '#faf5ff', border: '1px solid #ede9fe', borderRadius: 12, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {/* Planning step */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        {stage === 'planning' ? (
-          <div style={{ width: 20, height: 20, borderRadius: '50%', border: '2.5px solid #ede9fe', borderTopColor: '#7c3aed', animation: 'forge-spin 0.75s linear infinite', flexShrink: 0 }} />
-        ) : (
-          <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 11, color: 'white' }}>✓</div>
-        )}
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: stage === 'planning' ? '#5b21b6' : '#7c3aed' }}>
-            {stage === 'planning' ? 'Planning your website...' : 'Plan complete'}
+      {AGENT_STAGES.map((s, i) => {
+        // Only show stages up to and including current (don't reveal future stages)
+        if (i > currentIdx) return null
+        const isActive = i === currentIdx
+        const isDone = i < currentIdx
+        return (
+          <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {isDone ? <div style={check}>✓</div> : <div style={spinner} />}
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: isActive ? '#5b21b6' : '#7c3aed' }}>
+                {isDone ? s.doneLabel : s.label}
+              </div>
+              {isActive && <div style={{ fontSize: 11, color: '#8b5cf6', marginTop: 1 }}>{s.sub}</div>}
+            </div>
           </div>
-          {stage === 'planning' && <div style={{ fontSize: 11, color: '#8b5cf6', marginTop: 1 }}>Choosing layout, colors &amp; images</div>}
-        </div>
-      </div>
-      {/* Building step */}
-      {stage === 'building' && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 20, height: 20, borderRadius: '50%', border: '2.5px solid #ede9fe', borderTopColor: '#7c3aed', animation: 'forge-spin 0.75s linear infinite', flexShrink: 0 }} />
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#5b21b6' }}>Building React component...</div>
-            <div style={{ fontSize: 11, color: '#8b5cf6', marginTop: 1 }}>Generating all 7 sections</div>
-          </div>
-        </div>
-      )}
+        )
+      })}
     </div>
   )
 }
@@ -338,7 +351,7 @@ export default function Builder() {
   const [photos, setPhotos] = useState<Record<string, string> | null>(null)
   const [input, setInput] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
-  const [genStage, setGenStage] = useState<'planning' | 'building'>('planning')
+  const [genStage, setGenStage] = useState<'planning' | 'building' | 'verifying' | 'patching'>('planning')
   const [deployed, setDeployed] = useState(false)
   const [deployUrl, setDeployUrl] = useState('')
 
@@ -438,7 +451,13 @@ export default function Builder() {
           if (d === '[DONE]') continue
           try {
             const j = JSON.parse(d)
-            if (j.content) {
+            if (j.type === 'stage') {
+              setGenStage(j.stage)
+            } else if (j.type === 'reset') {
+              // Patch pass starting — clear accumulated so we extract fresh code
+              accumulated = ''
+              setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, content: '' } : m))
+            } else if (j.content) {
               accumulated += j.content
               setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, content: accumulated } : m))
               // Extract code — match any language identifier (tsx, typescript, jsx, etc.)

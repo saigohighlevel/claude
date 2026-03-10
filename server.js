@@ -1,81 +1,82 @@
 import express from 'express'
 import 'dotenv/config'
+import { parse } from '@babel/parser'
 
 const app = express()
 app.use(express.json())
 
-// ─── Verified Photo Library ───────────────────────────────────────────────────
-// All IDs are verified Unsplash photos matched to their category.
-// Format: https://images.unsplash.com/photo-{ID}?auto=format&fit=crop&w={w}&h={h}&q=80
+// ─── Photo Library (Picsum Photos — reliable, no API key needed) ───────────────
+// Format: https://picsum.photos/seed/{seed}/{width}/{height}
+// Seeds are deterministic — same seed always returns same image
 
-const PHOTOS = {
+const PHOTO_SEEDS = {
   salon: {
-    hero:  '1560066984-138dadb4c035', // salon interior, warm lighting
-    svc1:  '1522337360788-8b13dee7a37e', // hairstylist at work
-    svc2:  '1582095133179-bfd08e2fbee6', // hair coloring
-    svc3:  '1503951914875-452162b0f3f1', // barbershop chair
-    about: '1595476108010-b4d1f102b1b1', // blowout / styling
+    hero:  'luxury-salon-interior',
+    svc1:  'hairstyle-cut-stylist',
+    svc2:  'hair-color-salon',
+    svc3:  'barbershop-grooming',
+    about: 'beauty-salon-blowout',
   },
   restaurant: {
-    hero:  '1517248135467-4c7edcad34c4', // restaurant interior, warm
-    svc1:  '1565299624946-b28f40a0ae38', // food plating
-    svc2:  '1414235077428-338989a2e8c0', // fine dining table
-    svc3:  '1504674900247-0877df9cc836', // dish close-up
-    about: '1414235077428-338989a2e8c0', // dining scene
+    hero:  'fine-dining-restaurant',
+    svc1:  'gourmet-food-plating',
+    svc2:  'restaurant-table-candles',
+    svc3:  'wine-cuisine-closeup',
+    about: 'chef-kitchen-cooking',
   },
   gym: {
-    hero:  '1534438327276-14e5300c3a48', // gym floor with equipment
-    svc1:  '1571019614242-c5c5dee81f9a', // personal training session
-    svc2:  '1583454110551-21f2fa2afe61', // weight lifting
-    svc3:  '1544367567-0f2fcb009e0b',   // yoga class
-    about: '1476480862126-209bfaa8edc8', // running track
+    hero:  'modern-gym-equipment',
+    svc1:  'personal-training-session',
+    svc2:  'weight-lifting-barbell',
+    svc3:  'yoga-studio-class',
+    about: 'running-track-athlete',
   },
   spa: {
-    hero:  '1540555700478-4be290a9f948', // spa candles and calm
-    svc1:  '1515377905703-c4788e51af15', // massage treatment
-    svc2:  '1596178068033-bc38d7f8ef7b', // facial treatment
-    svc3:  '1544367567-0f2fcb009e0b',   // yoga / mindfulness
-    about: '1540555700478-4be290a9f948', // spa ambiance
+    hero:  'spa-candles-zen-calm',
+    svc1:  'massage-therapy-table',
+    svc2:  'facial-skincare-treatment',
+    svc3:  'yoga-meditation-wellness',
+    about: 'spa-pool-tranquil',
   },
   tech: {
-    hero:  '1497366216548-37526070297c', // modern open office
-    svc1:  '1551434678-e076c223a692',   // team meeting
-    svc2:  '1504384308090-c894fdcc538d', // coding workspace
-    svc3:  '1522202176988-66273c2fd55f', // team collaboration
-    about: '1522202176988-66273c2fd55f', // office team
+    hero:  'modern-open-office',
+    svc1:  'team-meeting-boardroom',
+    svc2:  'coding-workspace-screens',
+    svc3:  'startup-collaboration',
+    about: 'tech-team-startup',
   },
   realestate: {
-    hero:  '1560518883-ce09059eeffa',   // luxury home exterior
-    svc1:  '1570129477492-45c003edd2be', // luxury interior living room
-    svc2:  '1556909114-f6e7ad7d3136',   // modern kitchen
-    svc3:  '1582407947304-fd86f28320c9', // pool and backyard
-    about: '1560518883-ce09059eeffa',   // property exterior
+    hero:  'luxury-home-exterior',
+    svc1:  'modern-living-room',
+    svc2:  'luxury-kitchen-design',
+    svc3:  'pool-backyard-estate',
+    about: 'real-estate-architecture',
   },
   medical: {
-    hero:  '1576091160550-2173dba999ef', // doctor consultation
-    svc1:  '1559757175-5700dde675bc',   // clinic interior
-    svc2:  '1612349317150-e413f6a5b16d', // medical team
-    svc3:  '1584820927498-cfe5211fd8bf', // therapy session
-    about: '1576091160550-2173dba999ef', // medical consultation
+    hero:  'doctor-consultation',
+    svc1:  'medical-clinic-reception',
+    svc2:  'healthcare-team',
+    svc3:  'physical-therapy',
+    about: 'medical-professional-care',
   },
   generic: {
-    hero:  '1557804483-ef3f8fbf14e4',   // abstract professional
-    svc1:  '1551434678-e076c223a692',   // business meeting
-    svc2:  '1497366216548-37526070297c', // office environment
-    svc3:  '1504384308090-c894fdcc538d', // productivity/laptop
-    about: '1522202176988-66273c2fd55f', // team
+    hero:  'professional-business-modern',
+    svc1:  'business-team-meeting',
+    svc2:  'office-workspace-bright',
+    svc3:  'productivity-laptop-desk',
+    about: 'company-team-work',
   },
 }
 
-// Verified portrait photos for testimonial avatars
-const PORTRAITS = [
-  '1531746020798-e6953c6e8e04', // woman, professional
-  '1580489944761-15a19d654956', // woman, smiling
-  '1507003211169-0a1dd7228f2d', // man, professional
+// Verified portrait seeds for testimonial avatars
+const PORTRAIT_SEEDS = [
+  'woman-professional-headshot',
+  'woman-smiling-portrait',
+  'man-professional-headshot',
 ]
 
-function img(id, w, h) {
-  return `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${w}&h=${h}&q=80`
+function img(seed, w, h) {
+  return `https://picsum.photos/seed/${seed}/${w}/${h}`
 }
 
 // ─── Stage 1: Planner Prompt ──────────────────────────────────────────────────
@@ -130,7 +131,7 @@ Be creative and specific. Invent a realistic, unique business name if not provid
 
 // ─── Stage 2: Builder Prompt factory ─────────────────────────────────────────
 function makeBuilderPrompt(plan, photos) {
-  const avatars = PORTRAITS.map(id => img(id, 80, 80))
+  const avatars = PORTRAIT_SEEDS.map(s => img(s, 80, 80))
   const heroImg = img(photos.hero, 1920, 1080)
   const aboutImg = img(photos.about, 900, 600)
   const svcImgs = [img(photos.svc1, 800, 533), img(photos.svc2, 800, 533), img(photos.svc3, 800, 533)]
@@ -143,7 +144,7 @@ function makeBuilderPrompt(plan, photos) {
 - Primary: ${plan.primary} | Accent: ${plan.accent} | BG: ${plan.bg} | Text: ${plan.text}
 - Tagline: "${plan.tagline}"
 
-## EXACT IMAGES (copy these URLs verbatim — do not change them)
+## EXACT IMAGES (use these URLs exactly — do not invent or change them)
 - Hero bg: ${heroImg}
 - Service 1: ${svcImgs[0]}  |  Service 2: ${svcImgs[1]}  |  Service 3: ${svcImgs[2]}
 - About: ${aboutImg}
@@ -164,13 +165,26 @@ function makeBuilderPrompt(plan, photos) {
 - export default function App() — single file, NO imports whatsoever
 - React globals already available: React, useState, useEffect, useRef, useCallback, useMemo
 - Tailwind CSS (CDN) for all styling — use className
-- Inline SVG for icons — no icon libraries
 - Output the FULL component — never truncate — do not use "..." — CRITICAL
-- NO react-router, NO window.location, NO history.pushState
+
+## ICONS — Use Lucide (globally available as window.lucide)
+- In JSX: <i data-lucide="ICON_NAME" className="w-5 h-5 inline-block"></i>
+- Call once: useEffect(() => { if (typeof lucide !== 'undefined') lucide.createIcons() }, [])
+- Nav/UI: menu, x, chevron-down, arrow-right, external-link
+- Contact: phone, mail, map-pin, clock, calendar
+- Trust: shield, award, star, check-circle, users, trending-up, zap, sparkles
+- Social: instagram, facebook, twitter, linkedin, youtube
+- Business icons — use whichever fits: scissors, utensils, dumbbell, leaf, building-2, home, stethoscope, heart, flame, bolt
+- NEVER use inline SVG — always use data-lucide attributes
+
+## IMAGES
+- Hero: style={{backgroundImage:'url(URL)',backgroundSize:'cover',backgroundPosition:'center',backgroundColor:'${plan.primary}'}}
+- Service/About <img>: className="w-full h-full object-cover" onError={e=>{(e.target as HTMLImageElement).style.opacity='0'}}
+- Avatars: className="w-12 h-12 rounded-full object-cover"
 
 ## NAVIGATION (iframe environment)
 - Nav anchor links: onClick={e => {e.preventDefault(); document.getElementById('section-id')?.scrollIntoView({behavior:'smooth'})}}
-- Every section has matching id attribute
+- Every section has matching id attribute: id="hero", id="services", id="about", id="testimonials", id="contact"
 - Mobile menu: useState boolean
 - No page routes
 
@@ -197,27 +211,68 @@ useEffect(() => {
 - Service card images: overflow-hidden, img hover:scale-105 transition-transform duration-500
 - Buttons: bg gradient primary→accent, rounded-full, shadow-lg, hover:shadow-xl hover:-translate-y-0.5
 
-## 7 REQUIRED SECTIONS
+## 7 REQUIRED SECTIONS (ALL must be present with correct id attributes)
 
 1. NAV (sticky, z-50, glassmorphism, logo gradient text, pill CTA, hamburger mobile, shadow on scroll)
 
-2. HERO (min-h-screen, bg image NO fixed attachment — use only backgroundSize cover + backgroundPosition center)
+2. HERO — id="hero" (min-h-screen, bg image NO fixed attachment)
    Structure: badge pill → h1.hero-title → p.hero-sub → div.hero-cta (buttons) → stats row
    Text color white throughout. Primary + secondary buttons.
 
-3. SERVICES (py-28, ${plan.bg} bg, gradient H2, 3-col grid, glassmorphism cards with image/body/explore link)
+3. SERVICES — id="services" (py-28, ${plan.bg} bg, gradient H2, 3-col grid, glassmorphism cards with image/body/explore link)
 
-4. ABOUT (py-28, ${plan.theme==='dark'?'#0a0a14':'#f8f8fc'} bg, 2-col flex: photo left + text right, 3 checkmarks, CTA button)
+4. ABOUT — id="about" (py-28, ${plan.theme==='dark'?'#0a0a14':'#f8f8fc'} bg, 2-col flex: photo left + text right, 3 checkmarks with check-circle icons, CTA button)
 
-5. TESTIMONIALS (py-28, ${plan.theme==='dark'?'#050510':'#f0f0f8'} bg, 3-col grid, glassmorphism cards, stars + quote + avatar)
+5. TESTIMONIALS — id="testimonials" (py-28, ${plan.theme==='dark'?'#050510':'#f0f0f8'} bg, 3-col grid, glassmorphism cards, stars + quote + avatar)
 
-6. CONTACT (py-28, ${plan.bg} bg, 2-col: form left + info right, map placeholder, submit with useState success state)
+6. CONTACT — id="contact" (py-28, ${plan.bg} bg, 2-col: form left + info right with phone/mail/map-pin Lucide icons, submit with useState success state)
 
-7. FOOTER (always dark #0d0d18, 4-col grid: brand+social | services | company | contact, bottom bar © + Built with Forge ⚡)
+7. FOOTER (always dark #0d0d18, 4-col grid: brand+social icons | services | company | contact, bottom bar © + Built with Forge ⚡)
 
 ## OUTPUT
-Brief intro sentence, then complete \`\`\`tsx\\n[full component here]\\n\`\`\`
-MUST include all 7 sections. Never stop early.`
+Brief intro sentence, then complete \`\`\`tsx\\n[full component]\\n\`\`\`
+MUST include all 7 sections with proper id attributes. Never stop early.`
+}
+
+// ─── Code Verification ────────────────────────────────────────────────────────
+
+function extractCode(text) {
+  const match = text.match(/```(?:tsx?|typescript|jsx?)\n([\s\S]+?)```/)
+  return match ? match[1] : null
+}
+
+function verifyCode(code) {
+  if (!code) return { valid: false, error: 'No code block found in the response' }
+
+  const lines = code.split('\n').length
+  if (lines < 250) {
+    return { valid: false, error: `Code is too short (${lines} lines). A complete 7-section landing page should be 300+ lines. Output was likely truncated.` }
+  }
+
+  if (!/export\s+default\s+function\s+App/.test(code)) {
+    return { valid: false, error: 'Missing "export default function App" — component not properly exported.' }
+  }
+
+  const required = [
+    { name: 'hero',          re: /id=["']hero["']/i },
+    { name: 'services',      re: /id=["']services["']/i },
+    { name: 'about',         re: /id=["']about["']/i },
+    { name: 'testimonials',  re: /id=["']testimonials["']/i },
+    { name: 'contact',       re: /id=["']contact["']/i },
+    { name: 'footer',        re: /<footer|id=["']footer["']/i },
+  ]
+  const missing = required.filter(r => !r.re.test(code)).map(r => r.name)
+  if (missing.length > 1) {
+    return { valid: false, error: `Missing required sections: ${missing.join(', ')}. All 7 sections must be present with correct id attributes.` }
+  }
+
+  try {
+    parse(code, { sourceType: 'module', plugins: ['jsx', 'typescript'] })
+  } catch (e) {
+    return { valid: false, error: `Syntax error: ${e.message.split('\n')[0]}` }
+  }
+
+  return { valid: true }
 }
 
 // ─── API Routes ───────────────────────────────────────────────────────────────
@@ -268,7 +323,7 @@ app.post('/api/plan', async (req, res) => {
     }
 
     const plan = JSON.parse(text)
-    const photos = PHOTOS[plan.business_type] || PHOTOS.generic
+    const photos = PHOTO_SEEDS[plan.business_type] || PHOTO_SEEDS.generic
     res.json({ plan, photos })
   } catch (e) {
     console.error('Plan error:', e)
@@ -276,14 +331,84 @@ app.post('/api/plan', async (req, res) => {
   }
 })
 
-// Stage 2: Build (streaming SSE)
+// ─── Streaming helper ─────────────────────────────────────────────────────────
+
+async function streamGeneration({ model, systemPrompt, messages, isAnthropic: useAnthropic, onChunk }) {
+  let fullText = ''
+
+  if (useAnthropic) {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: model || 'claude-sonnet-4-6',
+        max_tokens: 16000,
+        stream: true,
+        system: systemPrompt,
+        messages,
+      }),
+    })
+    for await (const chunk of r.body) {
+      const lines = new TextDecoder().decode(chunk).split('\n').filter(l => l.startsWith('data:'))
+      for (const line of lines) {
+        try {
+          const j = JSON.parse(line.slice(5))
+          if (j.type === 'content_block_delta' && j.delta?.text) {
+            fullText += j.delta.text
+            onChunk(j.delta.text)
+          }
+        } catch { /* ignore */ }
+      }
+    }
+  } else {
+    const r = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4.1',
+        max_tokens: 32000,
+        stream: true,
+        messages: [{ role: 'system', content: systemPrompt }, ...messages],
+      }),
+    })
+    for await (const chunk of r.body) {
+      const lines = new TextDecoder().decode(chunk).split('\n').filter(l => l.startsWith('data:'))
+      for (const line of lines) {
+        const d = line.slice(5).trim()
+        if (d === '[DONE]') continue
+        try {
+          const j = JSON.parse(d)
+          const c = j.choices?.[0]?.delta?.content
+          if (c) {
+            fullText += c
+            onChunk(c)
+          }
+        } catch { /* ignore */ }
+      }
+    }
+  }
+
+  return fullText
+}
+
+// Stage 2: Build (agentic loop — build → verify → patch if needed)
 app.post('/api/build', async (req, res) => {
   const { message, plan, photos, history = [] } = req.body
   const systemPrompt = makeBuilderPrompt(plan, photos)
+  const useAnthropic = isAnthropic()
 
   res.setHeader('Content-Type', 'text/event-stream')
   res.setHeader('Cache-Control', 'no-cache')
   res.setHeader('Connection', 'keep-alive')
+
+  const send = (obj) => res.write(`data: ${JSON.stringify(obj)}\n\n`)
 
   const msgs = [
     ...history.filter(h => h.role === 'user' || h.role === 'assistant').slice(-6),
@@ -291,64 +416,58 @@ app.post('/api/build', async (req, res) => {
   ]
 
   try {
-    if (isAnthropic()) {
-      const r = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': process.env.ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01',
+    // ── Stage: Build ─────────────────────────────────────────────────────────
+    send({ type: 'stage', stage: 'building' })
+
+    const fullResponse = await streamGeneration({
+      systemPrompt,
+      messages: msgs,
+      isAnthropic: useAnthropic,
+      onChunk: (text) => send({ content: text }),
+    })
+
+    // ── Stage: Verify ─────────────────────────────────────────────────────────
+    send({ type: 'stage', stage: 'verifying' })
+
+    const code = extractCode(fullResponse)
+    const { valid, error } = verifyCode(code)
+
+    if (!valid) {
+      console.log(`[verify] Failed: ${error} — starting patch pass`)
+
+      // ── Stage: Patch ───────────────────────────────────────────────────────
+      send({ type: 'stage', stage: 'patching' })
+      send({ type: 'reset' })  // tell frontend to clear accumulated text
+
+      const patchMessages = [
+        { role: 'user', content: message },
+        { role: 'assistant', content: fullResponse },
+        {
+          role: 'user',
+          content: `The generated code has this issue: ${error}
+
+Please regenerate the COMPLETE landing page from scratch. Requirements:
+- ALL 7 sections must be present: nav, hero (id="hero"), services (id="services"), about (id="about"), testimonials (id="testimonials"), contact (id="contact"), footer
+- Minimum 350 lines of complete, working TSX
+- No truncation — write every section in full
+- export default function App() at the end
+
+Output only a single \`\`\`tsx code block with the full component.`,
         },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 16000,
-          stream: true,
-          system: systemPrompt,
-          messages: msgs,
-        }),
+      ]
+
+      await streamGeneration({
+        systemPrompt,
+        messages: patchMessages,
+        isAnthropic: useAnthropic,
+        onChunk: (text) => send({ content: text }),
       })
-      for await (const chunk of r.body) {
-        const lines = new TextDecoder().decode(chunk).split('\n').filter(l => l.startsWith('data:'))
-        for (const line of lines) {
-          try {
-            const j = JSON.parse(line.slice(5))
-            if (j.type === 'content_block_delta' && j.delta?.text) {
-              res.write(`data: ${JSON.stringify({ content: j.delta.text })}\n\n`)
-            }
-          } catch { /* ignore parse errors */ }
-        }
-      }
-    } else {
-      const r = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: 'gpt-4.1',
-          max_tokens: 32000,
-          stream: true,
-          messages: [{ role: 'system', content: systemPrompt }, ...msgs],
-        }),
-      })
-      for await (const chunk of r.body) {
-        const lines = new TextDecoder().decode(chunk).split('\n').filter(l => l.startsWith('data:'))
-        for (const line of lines) {
-          const d = line.slice(5).trim()
-          if (d === '[DONE]') continue
-          try {
-            const j = JSON.parse(d)
-            const c = j.choices?.[0]?.delta?.content
-            if (c) res.write(`data: ${JSON.stringify({ content: c })}\n\n`)
-          } catch { /* ignore */ }
-        }
-      }
     }
+
     res.write('data: [DONE]\n\n')
   } catch (e) {
     console.error('Build error:', e)
-    res.write(`data: ${JSON.stringify({ error: String(e) })}\n\n`)
+    send({ error: String(e) })
   }
   res.end()
 })
