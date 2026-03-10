@@ -253,17 +253,18 @@ function verifyCode(code) {
     return { valid: false, error: 'Missing "export default function App" — component not properly exported.' }
   }
 
+  // Use prefix matching so id="hero-section" also passes
   const required = [
-    { name: 'hero',          re: /id=["']hero["']/i },
-    { name: 'services',      re: /id=["']services["']/i },
-    { name: 'about',         re: /id=["']about["']/i },
-    { name: 'testimonials',  re: /id=["']testimonials["']/i },
-    { name: 'contact',       re: /id=["']contact["']/i },
-    { name: 'footer',        re: /<footer|id=["']footer["']/i },
+    { name: 'hero',          re: /id=["']hero/i },
+    { name: 'services',      re: /id=["']services/i },
+    { name: 'about',         re: /id=["']about/i },
+    { name: 'testimonials',  re: /id=["']testimonials/i },
+    { name: 'contact',       re: /id=["']contact/i },
+    { name: 'footer',        re: /<footer|id=["']footer/i },
   ]
   const missing = required.filter(r => !r.re.test(code)).map(r => r.name)
   if (missing.length > 1) {
-    return { valid: false, error: `Missing required sections: ${missing.join(', ')}. All 7 sections must be present with correct id attributes.` }
+    return { valid: false, error: `Missing required sections: ${missing.join(', ')}. All 7 sections must be present.` }
   }
 
   try {

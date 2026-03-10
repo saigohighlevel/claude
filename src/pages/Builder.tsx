@@ -161,6 +161,7 @@ function LivePreview({ code, isGenerating, viewport, onReady }: {
         // Re-run createIcons when React updates the DOM (e.g. conditional renders)
         'new MutationObserver(function(){if(typeof lucide!=="undefined")lucide.createIcons()}).observe(document.getElementById("root"),{childList:true,subtree:true});',
         'setTimeout(sendHeight,700);',
+        'setTimeout(function(){if(typeof lucide!=="undefined")lucide.createIcons();},800);',
         'setTimeout(sendHeight,2000);',
         'new MutationObserver(sendHeight).observe(document.body,{childList:true,subtree:true});',
         '}catch(e){showError(e.message+(e.stack?"\\n\\n"+e.stack:""));}',
