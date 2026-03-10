@@ -53,6 +53,7 @@ function LivePreview({ code, isGenerating, viewport, onReady }: {
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const showingLoadingRef = useRef(false) // track if LOADING_HTML is already shown (avoid repeat navigations)
 
   const isNarrowed = viewport < 1024
 
@@ -63,6 +64,8 @@ function LivePreview({ code, isGenerating, viewport, onReady }: {
       if (e.data?.type === 'forge-resize' && iframeRef.current) {
         const h = Math.max(Number(e.data.height) || 900, 900)
         iframeRef.current.style.height = `${h}px`
+      } else if (e.data?.type === 'forge-iframe-error') {
+        console.warn('[iframe]', e.data.msg)
       }
     }
     window.addEventListener('message', handler)
@@ -73,12 +76,18 @@ function LivePreview({ code, isGenerating, viewport, onReady }: {
     if (!iframeRef.current) return
 
     // Show loading if no code yet or still generating (avoid rendering incomplete/broken TSX)
+    // Only set LOADING_HTML once per generation cycle — not on every chunk — to avoid repeat
+    // iframe navigations which trigger "allow-scripts + allow-same-origin" browser warnings.
     if (!code || isGenerating) {
-      clearTimeout(debounceRef.current)
-      iframeRef.current.srcdoc = LOADING_HTML
+      if (!showingLoadingRef.current) {
+        showingLoadingRef.current = true
+        clearTimeout(debounceRef.current)
+        iframeRef.current.srcdoc = LOADING_HTML
+      }
       return
     }
 
+    showingLoadingRef.current = false
     clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
       if (!iframeRef.current) return
@@ -195,7 +204,7 @@ function LivePreview({ code, isGenerating, viewport, onReady }: {
       <iframe
         ref={iframeRef}
         title="Preview"
-        sandbox="allow-scripts allow-forms"
+        sandbox="allow-scripts allow-same-origin allow-forms"
         style={{
           width: isNarrowed ? `${viewport}px` : '100%',
           height: isNarrowed ? '900px' : '100%',
