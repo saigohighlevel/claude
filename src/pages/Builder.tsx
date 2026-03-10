@@ -165,7 +165,7 @@ function LivePreview({ code, isGenerating, viewport, onReady }: {
 
       iframeRef.current.srcdoc = srcdoc
       onReady?.(srcdoc)
-    }, delay)
+    }, 300)
 
     return () => clearTimeout(debounceRef.current)
   }, [code, isGenerating, onReady])
