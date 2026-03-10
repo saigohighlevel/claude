@@ -416,6 +416,11 @@ app.post('/api/build', async (req, res) => {
     { role: 'user', content: message },
   ]
 
+  console.log(`\n[build] ── new request ──────────────────────────────────`)
+  console.log(`[build] message: "${(message || '').slice(0, 100)}"`)
+  console.log(`[build] plan: ${plan?.business_type || '?'} / ${plan?.theme || '?'} — "${plan?.name || '?'}"`)
+  console.log(`[build] provider: ${useAnthropic ? 'Anthropic' : 'OpenAI'}, history msgs: ${msgs.length}`)
+
   try {
     // ── Stage: Build ─────────────────────────────────────────────────────────
     send({ type: 'stage', stage: 'building' })
@@ -427,16 +432,28 @@ app.post('/api/build', async (req, res) => {
       onChunk: (text) => send({ content: text }),
     })
 
+    console.log(`[build] LLM response: ${fullResponse.length} chars, ${fullResponse.split('\n').length} lines`)
+    if (fullResponse.length < 100) {
+      console.log(`[build] SHORT RESPONSE — full text: ${JSON.stringify(fullResponse)}`)
+    }
+
     // ── Stage: Verify ─────────────────────────────────────────────────────────
     send({ type: 'stage', stage: 'verifying' })
 
     const code = extractCode(fullResponse)
+    if (!code) {
+      console.log(`[verify] ✗ NO CODE BLOCK found — response starts with: ${fullResponse.slice(0, 300).replace(/\n/g, '↵')}`)
+    } else {
+      console.log(`[verify] code block: ${code.length} chars, ${code.split('\n').length} lines`)
+      console.log(`[verify] code starts: ${code.slice(0, 120).replace(/\n/g, '↵')}`)
+    }
     const { valid, error } = verifyCode(code)
+    console.log(`[verify] result: ${valid ? '✓ PASS' : `✗ FAIL — ${error}`}`)
 
     if (!valid) {
-      console.log(`[verify] Failed: ${error} — starting patch pass`)
 
       // ── Stage: Patch ───────────────────────────────────────────────────────
+      console.log(`[build] starting patch pass`)
       send({ type: 'stage', stage: 'patching' })
       send({ type: 'reset' })  // tell frontend to clear accumulated text
 
@@ -457,15 +474,22 @@ Output only a single \`\`\`tsx code block with the full component.`,
         },
       ]
 
-      await streamGeneration({
+      const patchResponse = await streamGeneration({
         systemPrompt,
         messages: patchMessages,
         isAnthropic: useAnthropic,
         onChunk: (text) => send({ content: text }),
       })
+      console.log(`[build] patch response: ${patchResponse.length} chars, ${patchResponse.split('\n').length} lines`)
+      const patchCode = extractCode(patchResponse)
+      const patchVerify = verifyCode(patchCode)
+      console.log(`[build] patch verify: ${patchVerify.valid ? '✓ PASS' : `✗ FAIL — ${patchVerify.error}`}`)
+    } else {
+      console.log(`[build] ✓ verified, streaming to client (${fullResponse.length} chars)`)
     }
 
     res.write('data: [DONE]\n\n')
+    console.log(`[build] ✓ done`)
   } catch (e) {
     console.error('Build error:', e)
     send({ error: String(e) })

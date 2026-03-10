@@ -72,6 +72,8 @@ function LivePreview({ code, isGenerating, viewport, onReady }: {
   useEffect(() => {
     if (!iframeRef.current) return
 
+    console.log(`[preview] effect: code=${code.length}chars isGenerating=${isGenerating}`)
+
     // Show loading if no code yet or still generating (avoid rendering incomplete/broken TSX)
     if (!code || isGenerating) {
       clearTimeout(debounceRef.current)
@@ -142,14 +144,19 @@ function LivePreview({ code, isGenerating, viewport, onReady }: {
         'a[href^="#"]{cursor:pointer}',
         '</style>',
         '</head><body><div id="root"></div><script>',
-        'function showError(m){document.getElementById("root").innerHTML="<div style=\\"padding:32px;font-family:Inter,sans-serif\\"><div style=\\"background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:20px\\"><h3 style=\\"color:#dc2626;margin:0 0 8px;font-size:14px;font-weight:600\\">Preview Error</h3><pre style=\\"color:#991b1b;white-space:pre-wrap;font-size:12px;margin:0;font-family:monospace;line-height:1.5\\">"+m+"</pre></div></div>";}',
+        'function fwdErr(m){try{window.parent.postMessage({type:"forge-iframe-error",msg:m},"*")}catch(e){}}',
+        'function showError(m){fwdErr(m);document.getElementById("root").innerHTML="<div style=\\"padding:32px;font-family:Inter,sans-serif\\"><div style=\\"background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:20px\\"><h3 style=\\"color:#dc2626;margin:0 0 8px;font-size:14px;font-weight:600\\">Preview Error</h3><pre style=\\"color:#991b1b;white-space:pre-wrap;font-size:12px;margin:0;font-family:monospace;line-height:1.5\\">"+m+"</pre></div></div>";}',
         'window.onerror=function(msg,src,line,col,err){showError((err&&err.stack)||msg);return true;};',
+        'window.onunhandledrejection=function(e){showError(String(e.reason));return true;};',
         // Auto-resize: tell parent iframe our scroll height
         'function sendHeight(){try{window.parent.postMessage({type:"forge-resize",height:Math.max(document.body.scrollHeight,document.documentElement.scrollHeight)},"*")}catch(e){}}',
         'try{',
         'var __code=' + safeCode + ';',
+        'fwdErr("babel-start: code="+__code.length+"chars");',
         'var __r=Babel.transform(__code,{presets:[["react",{runtime:"classic"}],"typescript"],filename:"App.tsx"});',
+        'fwdErr("babel-ok: transformed="+__r.code.length+"chars");',
         '(0,eval)(__r.code);',
+        'fwdErr("eval-ok");',
         // Init AOS + GSAP + start resize reporting after React renders
         'setTimeout(function(){',
         '  if(typeof AOS!=="undefined")AOS.init({duration:750,easing:"ease-out-cubic",once:true,offset:60});',
@@ -168,6 +175,8 @@ function LivePreview({ code, isGenerating, viewport, onReady }: {
         sc + '</body></html>',
       ].join('\n')
 
+      console.log(`[preview] srcdoc: ${srcdoc.length} chars, processed code: ${processed.split('\n').length} lines`)
+      console.log(`[preview] processed code starts: ${processed.slice(0, 200).replace(/\n/g, '↵')}`)
       iframeRef.current.srcdoc = srcdoc
       onReady?.(srcdoc)
     }, 300)
@@ -367,6 +376,22 @@ export default function Builder() {
   useEffect(() => { planRef.current = plan }, [plan])
   useEffect(() => { photosRef.current = photos }, [photos])
 
+  // Forward iframe errors/logs to browser console
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === 'forge-iframe-error') {
+        const m = e.data.msg as string
+        if (m.startsWith('babel-') || m.startsWith('eval-')) {
+          console.log('[iframe]', m)
+        } else {
+          console.error('[iframe error]', m)
+        }
+      }
+    }
+    window.addEventListener('message', handler)
+    return () => window.removeEventListener('message', handler)
+  }, [])
+
   // Scroll chat to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -453,9 +478,11 @@ export default function Builder() {
           try {
             const j = JSON.parse(d)
             if (j.type === 'stage') {
+              console.log(`[builder] stage: ${j.stage}`)
               setGenStage(j.stage)
             } else if (j.type === 'reset') {
               // Patch pass starting — clear accumulated so we extract fresh code
+              console.log(`[builder] reset — clearing accumulated`)
               accumulated = ''
               setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, content: '' } : m))
             } else if (j.content) {
@@ -472,6 +499,7 @@ export default function Builder() {
       console.error('Build failed:', e)
     }
 
+    console.log(`[builder] done — accumulated ${accumulated.length} chars`)
     setIsGenerating(false)
   }
 
