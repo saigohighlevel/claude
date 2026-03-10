@@ -371,6 +371,7 @@ export default function Builder() {
   const planRef = useRef<Plan | null>(null)
   const photosRef = useRef<Record<string, string> | null>(null)
   const srcdocRef = useRef('')
+  const onPreviewReady = useCallback((s: string) => { srcdocRef.current = s }, [])
 
   // Keep refs in sync
   useEffect(() => { planRef.current = plan }, [plan])
@@ -446,6 +447,8 @@ export default function Builder() {
     const aiMsgId = Date.now() + 2
     setMessages(prev => [...prev, { id: aiMsgId, role: 'assistant', content: '' }])
 
+    let accumulated = ''
+
     try {
       const buildHistory = history
         .filter(m => m.role === 'user' || m.role === 'assistant')
@@ -465,7 +468,6 @@ export default function Builder() {
 
       const reader = r.body!.getReader()
       const decoder = new TextDecoder()
-      let accumulated = ''
 
       while (true) {
         const { done, value } = await reader.read()
@@ -497,10 +499,10 @@ export default function Builder() {
       }
     } catch (e) {
       console.error('Build failed:', e)
+    } finally {
+      console.log(`[builder] done — accumulated ${accumulated.length} chars`)
+      setIsGenerating(false)
     }
-
-    console.log(`[builder] done — accumulated ${accumulated.length} chars`)
-    setIsGenerating(false)
   }
 
   // Auto-generate on first load
@@ -748,7 +750,7 @@ export default function Builder() {
           {/* Content */}
           <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             {view === 'preview'
-              ? <LivePreview code={code} isGenerating={isGenerating} viewport={viewport} onReady={s => { srcdocRef.current = s }} />
+              ? <LivePreview code={code} isGenerating={isGenerating} viewport={viewport} onReady={onPreviewReady} />
               : <CodePanel code={code} />
             }
           </div>
