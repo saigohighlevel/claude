@@ -698,7 +698,7 @@ export default function Builder() {
           )}
 
           {/* Content */}
-          <div style={{ flex: 1, overflow: 'hidden' }}>
+          <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             {view === 'preview'
               ? <LivePreview code={code} isGenerating={isGenerating} viewport={viewport} onReady={s => { srcdocRef.current = s }} />
               : <CodePanel code={code} />
